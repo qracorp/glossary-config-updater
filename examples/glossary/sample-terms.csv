@@ -1,0 +1,37 @@
+phrase,definition,category,source,last_updated
+API,"Application Programming Interface - a set of protocols and tools for building software applications",Technical,Engineering Team,2024-01-15
+REST,"Representational State Transfer - an architectural style for designing networked applications",Technical,API Documentation,2024-01-15
+JSON,"JavaScript Object Notation - a lightweight data interchange format",Technical,Data Team,2024-01-10
+YAML,"YAML Ain't Markup Language - a human-readable data serialization standard",Technical,DevOps Team,2024-01-12
+HTTP,"Hypertext Transfer Protocol - the foundation of data communication for the World Wide Web",Technical,Network Team,2024-01-14
+HTTPS,"Hypertext Transfer Protocol Secure - HTTP with encryption using SSL/TLS",Security,Security Team,2024-01-14
+OAuth,"Open Authorization - an open standard for access delegation",Security,Security Team,2024-01-10
+JWT,"JSON Web Token - a compact way to securely transmit information between parties",Security,Security Team,2024-01-11
+Microservice,"A small, independent service that performs a specific business function",Architecture,Architecture Team,2024-01-12
+Container,"A lightweight, standalone package that includes everything needed to run an application",DevOps,DevOps Team,2024-01-13
+Docker,"A platform for developing, shipping, and running applications using containerization",DevOps,DevOps Team,2024-01-13
+Kubernetes,"An open-source container orchestration platform for automating deployment and management",DevOps,DevOps Team,2024-01-13
+CI/CD,"Continuous Integration/Continuous Deployment - practices for automating software delivery",DevOps,DevOps Team,2024-01-14
+GraphQL,"A query language for APIs and a runtime for executing those queries",Technical,API Team,2024-01-15
+WebSocket,"A communication protocol providing full-duplex communication over a single TCP connection",Technical,Real-time Team,2024-01-15
+SSL/TLS,"Secure Sockets Layer/Transport Layer Security - cryptographic protocols for secure communication",Security,Security Team,2024-01-14
+Database,"An organized collection of structured information stored electronically",Data,Data Team,2024-01-10
+NoSQL,"Not Only SQL - databases that provide flexible schemas for storing unstructured data",Data,Data Team,2024-01-11
+SQL,"Structured Query Language - a programming language for managing relational databases",Data,Data Team,2024-01-10
+CDN,"Content Delivery Network - a distributed network of servers for delivering web content",Infrastructure,Infrastructure Team,2024-01-13
+Load Balancer,"A device that distributes network or application traffic across multiple servers",Infrastructure,Infrastructure Team,2024-01-13
+Cache,"A hardware or software component that stores data for faster future access",Performance,Performance Team,2024-01-12
+Redis,"An in-memory data structure store used as a database, cache, and message broker",Data,Data Team,2024-01-11
+MongoDB,"A document-oriented NoSQL database program using JSON-like documents",Data,Data Team,2024-01-11
+PostgreSQL,"An open-source relational database management system with advanced features",Data,Data Team,2024-01-10
+Git,"A distributed version control system for tracking changes in source code",DevOps,DevOps Team,2024-01-12
+GitHub,"A web-based platform for version control and collaboration using Git",DevOps,DevOps Team,2024-01-12
+GitLab,"A DevOps platform that provides Git repository management and CI/CD pipelines",DevOps,DevOps Team,2024-01-12
+Jenkins,"An open-source automation server for building, testing, and deploying software",DevOps,DevOps Team,2024-01-13
+Terraform,"An infrastructure as code tool for building and managing infrastructure",Infrastructure,Infrastructure Team,2024-01-13
+AWS,"Amazon Web Services - a comprehensive cloud computing platform",Infrastructure,Cloud Team,2024-01-14
+Azure,"Microsoft Azure - a cloud computing service for building and managing applications",Infrastructure,Cloud Team,2024-01-14
+GCP,"Google Cloud Platform - a suite of cloud computing services",Infrastructure,Cloud Team,2024-01-14
+SaaS,"Software as a Service - software delivered over the internet on a subscription basis",Business,Product Team,2024-01-15
+PaaS,"Platform as a Service - a cloud computing model providing a platform for development",Business,Product Team,2024-01-15
+IaaS,"Infrastructure as a Service - cloud computing offering fundamental computing resources",Business,Product Team,2024-01-15

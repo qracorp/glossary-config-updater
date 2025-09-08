@@ -1,0 +1,62 @@
+# MANIFEST.in - Specifies additional files to include in source distributions
+
+# Include essential project files
+include README.md
+include LICENSE
+include CHANGELOG.md
+include requirements.txt
+include pyproject.toml
+include setup.py
+
+# Include documentation
+recursive-include docs *.md *.rst *.txt *.py *.yml *.yaml
+recursive-include docs/_static *
+recursive-include docs/_templates *
+
+# Include examples and templates
+recursive-include examples *.csv *.json *.yaml *.yml *.py *.sh *.env *.example *.groovy
+recursive-include examples/workflows *.yml *.yaml
+
+# Include scripts
+recursive-include scripts *.sh *.py *.bat
+
+# Include tools
+recursive-include tools *.py
+
+# Include test fixtures (but not test code in source dist)
+recursive-include tests/fixtures *.csv *.json *.yaml *.yml
+
+# Include type hints
+recursive-include glossary_updater *.py *.pyi py.typed
+
+# Exclude development and build artifacts
+exclude .gitignore
+exclude .pre-commit-config.yaml
+exclude tox.ini
+exclude .coverage
+exclude *.log
+
+# Exclude test code from source distributions
+recursive-exclude tests *.py
+recursive-exclude tests __pycache__
+recursive-exclude tests *.pyc
+
+# Exclude build directories
+recursive-exclude build *
+recursive-exclude dist *
+recursive-exclude *.egg-info *
+recursive-exclude __pycache__ *
+recursive-exclude .pytest_cache *
+recursive-exclude .mypy_cache *
+recursive-exclude htmlcov *
+
+# Exclude editor and IDE files
+recursive-exclude .vscode *
+recursive-exclude .idea *
+recursive-exclude *.swp
+recursive-exclude *.swo
+recursive-exclude *~
+
+# Exclude OS files
+recursive-exclude .DS_Store
+recursive-exclude Thumbs.db

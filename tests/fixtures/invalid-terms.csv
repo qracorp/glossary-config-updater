@@ -1,0 +1,22 @@
+phrase,definition
+API,"Application Programming Interface"
+"Missing definition phrase",
+,"Missing phrase"
+"Duplicate phrase","First definition"
+"Duplicate phrase","Second definition"
+"Extra,comma,in,phrase","This should cause parsing issues"
+"Unescaped "quotes" in phrase","Definition with unescaped quotes"
+"","Empty phrase and definition"
+"Very long phrase that exceeds reasonable limits and goes on and on and on and should probably be rejected by validation because it's way too long for a practical glossary term","Short definition"
+"Normal phrase","Very long definition that goes on and on and should probably be rejected by validation because definitions should be concise and to the point but this one just keeps going and going and going and going and would be impractical to display in most user interfaces and could cause performance issues when processing large datasets with extremely verbose definitions like this one that never seems to end"
+"Special !@#$%^&*()_+ characters","Definition with special characters !@#$%^&*()"
+"	Tab character	","Definition with	tab characters"
+"
+Newline character
+","Definition with
+newline characters"
+"Phrase with trailing spaces   ","   Definition with leading and trailing spaces   "
+"null","null"
+"undefined","undefined"
+"123","Numeric phrase"
+"","Definition without phrase"

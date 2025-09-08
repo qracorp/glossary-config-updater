@@ -1,0 +1,90 @@
+{
+  "glossary_terms": [
+    {
+      "phrase": "API",
+      "definition": "Application Programming Interface - a set of protocols and tools for building software applications"
+    },
+    {
+      "phrase": "Authentication",
+      "definition": "The process of verifying the identity of a user or system"
+    },
+    {
+      "phrase": "Authorization",
+      "definition": "The process of determining what actions an authenticated user is allowed to perform"
+    },
+    {
+      "phrase": "Configuration",
+      "definition": "A set of parameters that determine how a system operates"
+    },
+    {
+      "phrase": "CSV",
+      "definition": "Comma-Separated Values - a file format used to store tabular data"
+    },
+    {
+      "phrase": "Database",
+      "definition": "An organized collection of structured information stored electronically"
+    },
+    {
+      "phrase": "Deployment",
+      "definition": "The process of making software available for use in a production environment"
+    },
+    {
+      "phrase": "Docker",
+      "definition": "A platform for developing, shipping, and running applications in containers"
+    },
+    {
+      "phrase": "Environment Variable",
+      "definition": "A dynamic value that can affect the way running processes behave on a computer"
+    },
+    {
+      "phrase": "Git",
+      "definition": "A distributed version control system for tracking changes in source code"
+    },
+    {
+      "phrase": "JSON",
+      "definition": "JavaScript Object Notation - a lightweight data interchange format"
+    },
+    {
+      "phrase": "Kubernetes",
+      "definition": "An open-source container orchestration platform"
+    },
+    {
+      "phrase": "Load Balancer",
+      "definition": "A device that distributes network traffic across multiple servers"
+    },
+    {
+      "phrase": "Microservices",
+      "definition": "An architectural approach where applications are built as a collection of small services"
+    },
+    {
+      "phrase": "OAuth",
+      "definition": "An open standard for access delegation commonly used for token-based authentication"
+    },
+    {
+      "phrase": "Pipeline",
+      "definition": "An automated process that takes code from version control and deploys it to production"
+    },
+    {
+      "phrase": "REST API",
+      "definition": "Representational State Transfer - an architectural style for web services"
+    },
+    {
+      "phrase": "YAML",
+      "definition": "YAML Ain't Markup Language - a human-readable data serialization standard"
+    },
+    {
+      "phrase": "Endpoint",
+      "definition": "A specific URL where an API can be accessed"
+    },
+    {
+      "phrase": "Repository",
+      "definition": "A storage location for software packages or source code"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created_date": "2025-09-08",
+    "total_terms": 20,
+    "format": "json"
+  }
+}

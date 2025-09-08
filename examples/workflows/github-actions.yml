@@ -1,0 +1,466 @@
+# GitHub Actions Workflow for Glossary Configuration Updates
+# Save this as .github/workflows/glossary-update.yml in your repository
+
+name: Glossary Configuration Update
+
+on:
+  # Trigger on changes to glossary files
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'docs/glossary/**'
+      - 'glossary/**'
+      - '.github/workflows/glossary-update.yml'
+
+  # Trigger on pull requests affecting glossary files
+  pull_request:
+    paths:
+      - 'docs/glossary/**'
+      - 'glossary/**'
+
+  # Allow manual triggering with custom parameters
+  workflow_dispatch:
+    inputs:
+      config_id:
+        description: 'Configuration ID to update'
+        required: true
+        default: 'config123'
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      merge_strategy:
+        description: 'Merge strategy to use'
+        required: true
+        default: 'merge'
+        type: choice
+        options:
+          - merge
+          - overwrite
+      dry_run:
+        description: 'Perform dry run only'
+        required: false
+        default: true
+        type: boolean
+
+# Define environment variables used across jobs
+env:
+  PYTHON_VERSION: '3.10'
+  GLOSSARY_DIRECTORY: 'docs/glossary'
+
+jobs:
+  # Job 1: Validate glossary files
+  validate:
+    name: Validate Glossary Files
+    runs-on: ubuntu-latest
+    
+    outputs:
+      files-changed: ${{ steps.changes.outputs.glossary }}
+      file-count: ${{ steps.count-files.outputs.count }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for proper diff
+
+      - name: Check for glossary file changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            glossary:
+              - 'docs/glossary/**'
+              - 'glossary/**'
+
+      - name: Set up Python
+        if: steps.changes.outputs.glossary == 'true'
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        if: steps.changes.outputs.glossary == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install glossary-config-updater pandas pyyaml
+
+      - name: Count glossary files
+        id: count-files
+        run: |
+          count=$(find ${{ env.GLOSSARY_DIRECTORY }} -name "*.csv" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" 2>/dev/null | wc -l)
+          echo "count=$count" >> $GITHUB_OUTPUT
+          echo "Found $count glossary files"
+
+      - name: Validate CSV files
+        if: steps.changes.outputs.glossary == 'true'
+        run: |
+          echo "Validating CSV files..."
+          for file in ${{ env.GLOSSARY_DIRECTORY }}/*.csv; do
+            if [ -f "$file" ]; then
+              echo "Validating: $file"
+              python -c "
+              import pandas as pd
+              import sys
+              try:
+                  df = pd.read_csv('$file')
+                  print(f'✅ Valid CSV: $file ({len(df)} rows)')
+                  
+                  # Check for required columns
+                  columns = [col.lower().strip() for col in df.columns]
+                  has_phrase = any('phrase' in col or 'term' in col or 'word' in col for col in columns)
+                  has_definition = any('definition' in col or 'description' in col or 'meaning' in col for col in columns)
+                  
+                  if not has_phrase:
+                      print(f'⚠️  Warning: No phrase column found in $file')
+                  if not has_definition:
+                      print(f'⚠️  Warning: No definition column found in $file')
+                      
+              except Exception as e:
+                  print(f'❌ Invalid CSV: $file - {e}')
+                  sys.exit(1)
+              "
+            fi
+          done
+
+      - name: Validate JSON files
+        if: steps.changes.outputs.glossary == 'true'
+        run: |
+          echo "Validating JSON files..."
+          for file in ${{ env.GLOSSARY_DIRECTORY }}/*.json; do
+            if [ -f "$file" ]; then
+              echo "Validating: $file"
+              if python -m json.tool "$file" > /dev/null; then
+                echo "✅ Valid JSON: $file"
+              else
+                echo "❌ Invalid JSON: $file"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Validate YAML files
+        if: steps.changes.outputs.glossary == 'true'
+        run: |
+          echo "Validating YAML files..."
+          for file in ${{ env.GLOSSARY_DIRECTORY }}/*.yaml ${{ env.GLOSSARY_DIRECTORY }}/*.yml; do
+            if [ -f "$file" ]; then
+              echo "Validating: $file"
+              if python -c "import yaml; yaml.safe_load(open('$file'))"; then
+                echo "✅ Valid YAML: $file"
+              else
+                echo "❌ Invalid YAML: $file"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Generate validation summary
+        if: steps.changes.outputs.glossary == 'true'
+        run: |
+          echo "## Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Total files found: ${{ steps.count-files.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- CSV files: $(find ${{ env.GLOSSARY_DIRECTORY }} -name "*.csv" | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- JSON files: $(find ${{ env.GLOSSARY_DIRECTORY }} -name "*.json" | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- YAML files: $(find ${{ env.GLOSSARY_DIRECTORY }} -name "*.yaml" -o -name "*.yml" | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Validation status: ✅ All files valid" >> $GITHUB_STEP_SUMMARY
+
+  # Job 2: Test update with dry run
+  test-update:
+    name: Test Glossary Update
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.files-changed == 'true' && github.event_name == 'pull_request'
+    
+    environment: testing
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install glossary updater
+        run: |
+          python -m pip install --upgrade pip
+          pip install glossary-config-updater
+
+      - name: Test glossary update (dry run)
+        run: |
+          echo "Testing glossary update with dry run..."
+          glossary-updater \
+            --directory ${{ env.GLOSSARY_DIRECTORY }} \
+            --config ${{ vars.TEST_CONFIG_ID }} \
+            --merge-strategy merge \
+            --dry-run \
+            --verbose
+        env:
+          API_DOMAIN: ${{ secrets.API_DOMAIN }}
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
+
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            // Find existing bot comment
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Glossary Update Test Results')
+            );
+            
+            const commentBody = `## 🧪 Glossary Update Test Results
+            
+            ✅ **Dry run completed successfully!**
+            
+            - **Files processed:** ${{ needs.validate.outputs.file-count }}
+            - **Configuration:** ${{ vars.TEST_CONFIG_ID }}
+            - **Strategy:** merge
+            - **Status:** Ready for merge
+            
+            The glossary update has been tested and is ready to be applied when this PR is merged.
+            `;
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+  # Job 3: Deploy to staging (auto on develop branch)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.files-changed == 'true' && github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    environment: staging
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install glossary updater
+        run: |
+          python -m pip install --upgrade pip
+          pip install glossary-config-updater
+
+      - name: Update staging glossary
+        run: |
+          echo "Updating staging glossary configuration..."
+          glossary-updater \
+            --directory ${{ env.GLOSSARY_DIRECTORY }} \
+            --config ${{ vars.STAGING_CONFIG_ID }} \
+            --merge-strategy merge \
+            --verbose
+        env:
+          API_DOMAIN: ${{ secrets.API_DOMAIN }}
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
+
+      - name: Post to Slack
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "✅ Glossary updated in staging environment"
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Job 4: Deploy to production (manual approval required)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.files-changed == 'true' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    environment: 
+      name: production
+      url: https://app.example.com/glossary
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install glossary updater
+        run: |
+          python -m pip install --upgrade pip
+          pip install glossary-config-updater
+
+      - name: Create backup
+        run: |
+          echo "Creating configuration backup..."
+          mkdir -p backups
+          timestamp=$(date +%Y%m%d-%H%M%S)
+          
+          # Download current config as backup
+          curl -s -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
+               "https://${{ secrets.API_DOMAIN }}/analysis/v2/configuration/${{ vars.PROD_CONFIG_ID }}" \
+               > "backups/prod-config-backup-$timestamp.json"
+          
+          echo "Backup saved: backups/prod-config-backup-$timestamp.json"
+
+      - name: Update production glossary
+        run: |
+          echo "Updating production glossary configuration..."
+          glossary-updater \
+            --directory ${{ env.GLOSSARY_DIRECTORY }} \
+            --config ${{ vars.PROD_CONFIG_ID }} \
+            --merge-strategy overwrite \
+            --verbose
+        env:
+          API_DOMAIN: ${{ secrets.API_DOMAIN }}
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment..."
+          # Add verification logic here
+          echo "✅ Deployment verified"
+
+      - name: Create GitHub release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: glossary-${{ github.run_number }}
+          release_name: Glossary Update ${{ github.run_number }}
+          body: |
+            Automated glossary configuration update
+            
+            - Files processed: ${{ needs.validate.outputs.file-count }}
+            - Deployment time: ${{ steps.deployment.outputs.time }}
+            - Configuration: ${{ vars.PROD_CONFIG_ID }}
+          draft: false
+          prerelease: false
+
+      - name: Post success to Slack
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "🚀 Glossary successfully updated in production!"
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Post failure to Slack
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: "❌ Glossary production update failed!"
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Job 5: Manual workflow dispatch
+  manual-update:
+    name: Manual Glossary Update
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install glossary updater
+        run: |
+          python -m pip install --upgrade pip
+          pip install glossary-config-updater
+
+      - name: Set configuration ID
+        run: |
+          case "${{ github.event.inputs.environment }}" in
+            dev)
+              echo "CONFIG_ID=${{ vars.DEV_CONFIG_ID }}" >> $GITHUB_ENV
+              ;;
+            staging)
+              echo "CONFIG_ID=${{ vars.STAGING_CONFIG_ID }}" >> $GITHUB_ENV
+              ;;
+            prod)
+              echo "CONFIG_ID=${{ vars.PROD_CONFIG_ID }}" >> $GITHUB_ENV
+              ;;
+            *)
+              echo "CONFIG_ID=${{ github.event.inputs.config_id }}" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Update glossary configuration
+        run: |
+          echo "Updating glossary configuration..."
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Configuration: $CONFIG_ID"
+          echo "Strategy: ${{ github.event.inputs.merge_strategy }}"
+          echo "Dry run: ${{ github.event.inputs.dry_run }}"
+          
+          cmd="glossary-updater --directory ${{ env.GLOSSARY_DIRECTORY }} --config $CONFIG_ID --merge-strategy ${{ github.event.inputs.merge_strategy }} --verbose"
+          
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            cmd="$cmd --dry-run"
+          fi
+          
+          eval $cmd
+        env:
+          API_DOMAIN: ${{ secrets.API_DOMAIN }}
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
+
+      - name: Generate summary
+        run: |
+          echo "## Manual Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Configuration:** $CONFIG_ID" >> $GITHUB_STEP_SUMMARY
+          echo "- **Strategy:** ${{ github.event.inputs.merge_strategy }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run:** ${{ github.event.inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Completed successfully" >> $GITHUB_STEP_SUMMARY

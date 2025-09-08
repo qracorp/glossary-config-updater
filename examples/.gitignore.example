@@ -1,0 +1,298 @@
+# Glossary Configuration Updater - GitIgnore Example
+# Copy relevant sections to your project's .gitignore file
+
+# =============================================================================
+# Credentials and Secrets (NEVER commit these!)
+# =============================================================================
+.env
+.env.local
+.env.development
+.env.staging
+.env.production
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+config/secrets.yml
+config/database.yml
+
+# API tokens and keys
+api_keys.txt
+token.txt
+auth_token
+.api_key
+.access_token
+
+# =============================================================================
+# Logs and Temporary Files
+# =============================================================================
+logs/
+*.log
+*.log.*
+log-*.txt
+glossary-update-*.log
+backup-*.json
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# =============================================================================
+# Python Virtual Environments
+# =============================================================================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.python-version
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# =============================================================================
+# Package Manager Artifacts
+# =============================================================================
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+package-lock.json
+yarn.lock
+
+# Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# =============================================================================
+# IDE and Editor Files
+# =============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# Operating System Files
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# Glossary Updater Specific
+# =============================================================================
+# Backup files (unless you want to commit them)
+backups/
+*.backup
+config-backup-*.json
+glossary-backup-*.json
+
+# Processing artifacts
+.glossary-cache/
+.api-cache/
+processed/
+temp-glossary/
+
+# Test outputs
+test-results/
+coverage-reports/
+.test-cache/
+
+# =============================================================================
+# CI/CD and Deployment
+# =============================================================================
+# Docker
+.dockerignore
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Kubernetes
+*.kubeconfig
+k8s-secrets/
+
+# Helm
+charts/*.tgz
+
+# =============================================================================
+# Documentation and Reports
+# =============================================================================
+# Generated documentation
+docs/_build/
+docs/build/
+site/
+_site/
+
+# Report outputs (keep templates, ignore generated reports)
+reports/*.html
+reports/*.pdf
+reports/output/
+
+# =============================================================================
+# Database and Data Files
+# =============================================================================
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# Data dumps
+*.sql
+*.dump
+
+# =============================================================================
+# Project Specific Patterns
+# =============================================================================
+# Add your project-specific patterns here
+
+# Example: Don't commit large glossary files (if they're generated)
+# glossary/auto-generated/
+# glossary/*.large.csv
+
+# Example: Don't commit environment-specific configs
+# config/production.json
+# config/staging.json
+
+# Example: Don't commit personal workflow files
+# .personal-notes.md
+# my-workflow.sh
+
+# =============================================================================
+# What TO COMMIT (examples of files you typically want to include)
+# =============================================================================
+# These are comments showing what you SHOULD commit:
+
+# ✅ Commit these:
+# - .env.example (template)
+# - glossary source files (*.csv, *.json, *.yaml)
+# - configuration templates
+# - documentation (README.md, docs/)
+# - scripts (without credentials)
+# - CI/CD configuration files
+# - requirements.txt, package.json
+# - .gitignore itself
+
+# ❌ Never commit these:
+# - .env (actual environment variables)
+# - credentials, tokens, passwords
+# - generated backup files
+# - personal IDE settings
+# - temporary files
+# - large generated files
+
+# =============================================================================
+# Security Considerations
+# =============================================================================
+# Always review files before committing to ensure:
+# 1. No credentials or secrets are included
+# 2. No personal information is exposed
+# 3. No internal API endpoints or configurations
+# 4. No large binary files that don't belong in version control
+
+# Use 'git add -p' to review changes line by line
+# Use 'git diff --cached' to review staged changes before committing
+# Consider using pre-commit hooks to catch sensitive data

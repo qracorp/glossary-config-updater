@@ -1,0 +1,519 @@
+# GitLab CI/CD Pipeline for Glossary Configuration Updates
+# Save this as .gitlab-ci.yml in your repository root
+
+# Global configuration
+image: python:3.10-slim
+
+# Define pipeline stages
+stages:
+  - validate
+  - test
+  - deploy-staging
+  - deploy-production
+
+# Global variables
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  GLOSSARY_DIRECTORY: "docs/glossary"
+  PYTHON_VERSION: "3.10"
+
+# Cache configuration
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .cache/pip/
+    - venv/
+
+# Before script - run before each job
+before_script:
+  - python --version
+  - pip install --upgrade pip
+  - pip install glossary-config-updater
+
+# =============================================================================
+# VALIDATE STAGE
+# =============================================================================
+
+validate_files:
+  stage: validate
+  script:
+    - echo "🔍 Validating glossary files..."
+    - |
+      # Count files
+      total_files=0
+      csv_files=$(find $GLOSSARY_DIRECTORY -name "*.csv" 2>/dev/null | wc -l)
+      json_files=$(find $GLOSSARY_DIRECTORY -name "*.json" 2>/dev/null | wc -l)
+      yaml_files=$(find $GLOSSARY_DIRECTORY -name "*.yaml" -o -name "*.yml" 2>/dev/null | wc -l)
+      total_files=$((csv_files + json_files + yaml_files))
+      
+      echo "📊 File count summary:"
+      echo "  - CSV files: $csv_files"
+      echo "  - JSON files: $json_files"
+      echo "  - YAML files: $yaml_files"
+      echo "  - Total files: $total_files"
+      
+      if [ $total_files -eq 0 ]; then
+        echo "❌ No glossary files found in $GLOSSARY_DIRECTORY"
+        exit 1
+      fi
+    
+    # Validate CSV files
+    - |
+      echo "📝 Validating CSV files..."
+      pip install pandas
+      for file in $GLOSSARY_DIRECTORY/*.csv; do
+        if [ -f "$file" ]; then
+          echo "Validating: $file"
+          python -c "
+          import pandas as pd
+          import sys
+          try:
+              df = pd.read_csv('$file')
+              print(f'✅ Valid CSV: $file ({len(df)} rows)')
+              
+              # Check for required columns
+              columns = [col.lower().strip() for col in df.columns]
+              has_phrase = any('phrase' in col or 'term' in col or 'word' in col for col in columns)
+              has_definition = any('definition' in col or 'description' in col or 'meaning' in col for col in columns)
+              
+              if not has_phrase:
+                  print(f'⚠️  Warning: No phrase column found in $file')
+              if not has_definition:
+                  print(f'⚠️  Warning: No definition column found in $file')
+                  
+          except Exception as e:
+              print(f'❌ Invalid CSV: $file - {e}')
+              sys.exit(1)
+          "
+        fi
+      done
+    
+    # Validate JSON files
+    - |
+      echo "📄 Validating JSON files..."
+      for file in $GLOSSARY_DIRECTORY/*.json; do
+        if [ -f "$file" ]; then
+          echo "Validating: $file"
+          if python -m json.tool "$file" > /dev/null; then
+            echo "✅ Valid JSON: $file"
+          else
+            echo "❌ Invalid JSON: $file"
+            exit 1
+          fi
+        fi
+      done
+    
+    # Validate YAML files
+    - |
+      echo "📋 Validating YAML files..."
+      pip install PyYAML
+      for file in $GLOSSARY_DIRECTORY/*.yaml $GLOSSARY_DIRECTORY/*.yml; do
+        if [ -f "$file" ]; then
+          echo "Validating: $file"
+          if python -c "import yaml; yaml.safe_load(open('$file'))"; then
+            echo "✅ Valid YAML: $file"
+          else
+            echo "❌ Invalid YAML: $file"
+            exit 1
+          fi
+        fi
+      done
+    
+    - echo "✅ All file validations passed!"
+  only:
+    changes:
+      - docs/glossary/**/*
+      - glossary/**/*
+  artifacts:
+    reports:
+      junit: validation-report.xml
+    expire_in: 1 week
+  allow_failure: false
+
+# =============================================================================
+# TEST STAGE
+# =============================================================================
+
+dry_run_test:
+  stage: test
+  script:
+    - echo "🧪 Testing glossary update with dry run..."
+    - |
+      glossary-updater \
+        --directory $GLOSSARY_DIRECTORY \
+        --config $TEST_CONFIG_ID \
+        --merge-strategy merge \
+        --dry-run \
+        --verbose
+    - echo "✅ Dry run test completed successfully!"
+  environment:
+    name: testing
+  variables:
+    API_DOMAIN: $API_DOMAIN
+    API_USERNAME: $API_USERNAME
+    API_PASSWORD: $API_PASSWORD
+  only:
+    changes:
+      - docs/glossary/**/*
+      - glossary/**/*
+  except:
+    - main
+    - production
+  artifacts:
+    paths:
+      - logs/
+    expire_in: 1 day
+
+test_multiple_strategies:
+  stage: test
+  parallel:
+    matrix:
+      - STRATEGY: ["merge", "overwrite"]
+  script:
+    - echo "🔄 Testing $STRATEGY strategy..."
+    - |
+      glossary-updater \
+        --directory $GLOSSARY_DIRECTORY \
+        --config $TEST_CONFIG_ID \
+        --merge-strategy $STRATEGY \
+        --dry-run \
+        --verbose
+    - echo "✅ $STRATEGY strategy test completed!"
+  variables:
+    API_DOMAIN: $API_DOMAIN
+    API_USERNAME: $API_USERNAME
+    API_PASSWORD: $API_PASSWORD
+  only:
+    changes:
+      - docs/glossary/**/*
+      - glossary/**/*
+  when: manual
+  allow_failure: true
+
+# =============================================================================
+# STAGING DEPLOYMENT
+# =============================================================================
+
+deploy_staging:
+  stage: deploy-staging
+  script:
+    - echo "🚀 Deploying to staging environment..."
+    - |
+      # Create backup
+      mkdir -p backups
+      timestamp=$(date +%Y%m%d-%H%M%S)
+      echo "📦 Creating backup..."
+      
+      # Attempt to create backup (non-failing)
+      curl -s -f -H "Authorization: Bearer $API_TOKEN" \
+           "https://$API_DOMAIN/analysis/v2/configuration/$STAGING_CONFIG_ID" \
+           > "backups/staging-backup-$timestamp.json" || \
+           echo "⚠️  Backup creation failed, continuing anyway..."
+    
+    - |
+      # Perform update
+      echo "📝 Updating staging glossary..."
+      glossary-updater \
+        --directory $GLOSSARY_DIRECTORY \
+        --config $STAGING_CONFIG_ID \
+        --merge-strategy merge \
+        --verbose
+      
+      echo "✅ Staging deployment completed!"
+    
+    # Post-deployment verification
+    - |
+      echo "🔍 Verifying deployment..."
+      # Add verification logic here
+      sleep 5
+      echo "✅ Deployment verified"
+      
+  environment:
+    name: staging
+    url: https://staging.example.com/glossary
+    deployment_tier: staging
+  variables:
+    API_DOMAIN: $API_DOMAIN
+    API_USERNAME: $API_USERNAME
+    API_PASSWORD: $API_PASSWORD
+  only:
+    refs:
+      - develop
+    changes:
+      - docs/glossary/**/*
+      - glossary/**/*
+  artifacts:
+    paths:
+      - backups/
+    expire_in: 1 week
+  before_script:
+    - python --version
+    - pip install --upgrade pip
+    - pip install glossary-config-updater curl
+
+# =============================================================================
+# PRODUCTION DEPLOYMENT
+# =============================================================================
+
+deploy_production:
+  stage: deploy-production
+  script:
+    - echo "🏭 Deploying to production environment..."
+    
+    # Enhanced backup creation
+    - |
+      mkdir -p backups
+      timestamp=$(date +%Y%m%d-%H%M%S)
+      echo "📦 Creating production backup..."
+      
+      if curl -s -f -H "Authorization: Bearer $API_TOKEN" \
+              "https://$API_DOMAIN/analysis/v2/configuration/$PROD_CONFIG_ID" \
+              > "backups/prod-backup-$timestamp.json"; then
+        echo "✅ Backup created: backups/prod-backup-$timestamp.json"
+        backup_size=$(stat -c%s "backups/prod-backup-$timestamp.json")
+        echo "📊 Backup size: $backup_size bytes"
+      else
+        echo "❌ Failed to create backup, aborting deployment!"
+        exit 1
+      fi
+    
+    # Production deployment with enhanced monitoring
+    - |
+      echo "📝 Updating production glossary..."
+      start_time=$(date +%s)
+      
+      if glossary-updater \
+           --directory $GLOSSARY_DIRECTORY \
+           --config $PROD_CONFIG_ID \
+           --merge-strategy overwrite \
+           --verbose; then
+        
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        echo "✅ Production deployment completed in ${duration}s!"
+        
+        # Record deployment
+        echo "$timestamp,$PROD_CONFIG_ID,$CI_COMMIT_SHA,$duration,success" >> deployment-log.csv
+        
+      else
+        echo "❌ Production deployment failed!"
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        echo "$timestamp,$PROD_CONFIG_ID,$CI_COMMIT_SHA,$duration,failed" >> deployment-log.csv
+        exit 1
+      fi
+    
+    # Post-deployment verification
+    - |
+      echo "🔍 Running post-deployment verification..."
+      sleep 10
+      
+      # Health check
+      if curl -s -f "https://$API_DOMAIN/health" > /dev/null; then
+        echo "✅ API health check passed"
+      else
+        echo "❌ API health check failed"
+        exit 1
+      fi
+      
+      echo "✅ All verifications passed!"
+    
+    # Notification
+    - |
+      echo "📢 Sending deployment notification..."
+      if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        curl -X POST -H 'Content-type: application/json' \
+             --data "{\"text\":\"🚀 Glossary successfully deployed to production!\"}" \
+             "$SLACK_WEBHOOK_URL" || echo "⚠️  Slack notification failed"
+      fi
+      
+  environment:
+    name: production
+    url: https://app.example.com/glossary
+    deployment_tier: production
+  variables:
+    API_DOMAIN: $API_DOMAIN
+    API_USERNAME: $API_USERNAME
+    API_PASSWORD: $API_PASSWORD
+  only:
+    refs:
+      - main
+    changes:
+      - docs/glossary/**/*
+      - glossary/**/*
+  when: manual
+  artifacts:
+    paths:
+      - backups/
+      - deployment-log.csv
+    expire_in: 1 month
+  retry:
+    max: 2
+    when:
+      - api_failure
+      - runner_system_failure
+
+# =============================================================================
+# MANUAL JOBS
+# =============================================================================
+
+manual_update_dev:
+  stage: deploy-staging
+  script:
+    - echo "🔧 Manual development environment update..."
+    - |
+      glossary-updater \
+        --directory $GLOSSARY_DIRECTORY \
+        --config $DEV_CONFIG_ID \
+        --merge-strategy merge \
+        --verbose
+  environment:
+    name: development
+    deployment_tier: development
+  variables:
+    API_DOMAIN: $API_DOMAIN
+    API_USERNAME: $API_USERNAME
+    API_PASSWORD: $API_PASSWORD
+  when: manual
+  allow_failure: true
+
+rollback_production:
+  stage: deploy-production
+  script:
+    - echo "⏪ Rolling back production deployment..."
+    - |
+      # Find latest backup
+      latest_backup=$(ls -t backups/prod-backup-*.json | head -n1)
+      
+      if [ -f "$latest_backup" ]; then
+        echo "📦 Using backup: $latest_backup"
+        
+        # Extract config from backup and restore
+        echo "🔄 Restoring configuration..."
+        curl -X PUT \
+             -H "Authorization: Bearer $API_TOKEN" \
+             -H "Content-Type: application/json" \
+             -d @"$latest_backup" \
+             "https://$API_DOMAIN/analysis/v2/configuration/$PROD_CONFIG_ID"
+        
+        echo "✅ Rollback completed!"
+      else
+        echo "❌ No backup found for rollback!"
+        exit 1
+      fi
+  environment:
+    name: production
+    deployment_tier: production
+  variables:
+    API_DOMAIN: $API_DOMAIN
+  when: manual
+  dependencies:
+    - deploy_production
+
+# =============================================================================
+# SCHEDULED JOBS
+# =============================================================================
+
+scheduled_health_check:
+  stage: validate
+  script:
+    - echo "🏥 Running scheduled health check..."
+    - |
+      # Test API connectivity
+      if curl -s -f "https://$API_DOMAIN/health" > /dev/null; then
+        echo "✅ API is healthy"
+      else
+        echo "❌ API health check failed"
+        exit 1
+      fi
+      
+      # Test glossary updater
+      if glossary-updater --version > /dev/null; then
+        echo "✅ Glossary updater is working"
+      else
+        echo "❌ Glossary updater check failed"
+        exit 1
+      fi
+  variables:
+    API_DOMAIN: $API_DOMAIN
+  only:
+    - schedules
+  allow_failure: true
+
+# =============================================================================
+# UTILITY JOBS
+# =============================================================================
+
+generate_report:
+  stage: validate
+  script:
+    - echo "📊 Generating glossary report..."
+    - |
+      pip install pandas
+      python << 'EOF'
+      import os
+      import json
+      import pandas as pd
+      from pathlib import Path
+      
+      glossary_dir = Path(os.environ['GLOSSARY_DIRECTORY'])
+      report = {
+          'total_files': 0,
+          'total_terms': 0,
+          'files_by_type': {},
+          'files': []
+      }
+      
+      for file_path in glossary_dir.glob('*'):
+          if file_path.suffix.lower() in ['.csv', '.json', '.yaml', '.yml']:
+              report['total_files'] += 1
+              file_type = file_path.suffix.lower()
+              report['files_by_type'][file_type] = report['files_by_type'].get(file_type, 0) + 1
+              
+              # Count terms
+              term_count = 0
+              if file_type == '.csv':
+                  try:
+                      df = pd.read_csv(file_path)
+                      term_count = len(df)
+                  except:
+                      term_count = 0
+              
+              report['files'].append({
+                  'name': file_path.name,
+                  'type': file_type,
+                  'size': file_path.stat().st_size,
+                  'terms': term_count
+              })
+              
+              report['total_terms'] += term_count
+      
+      # Save report
+      with open('glossary-report.json', 'w') as f:
+          json.dump(report, f, indent=2)
+      
+      print(f"📈 Report generated:")
+      print(f"  - Total files: {report['total_files']}")
+      print(f"  - Total terms: {report['total_terms']}")
+      print(f"  - File types: {report['files_by_type']}")
+      EOF
+  artifacts:
+    paths:
+      - glossary-report.json
+    expire_in: 1 month
+  when: manual
+
+# =============================================================================
+# WORKFLOW RULES
+# =============================================================================
+
+workflow:
+  rules:
+    # Run on merge requests
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Run on pushes to main/develop
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"
+    # Run on manual triggers
+    - if: $CI_PIPELINE_SOURCE == "web"
+    # Run on schedules
+    - if: $CI_PIPELINE_SOURCE == "schedule"

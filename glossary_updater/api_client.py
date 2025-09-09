@@ -6,9 +6,12 @@ Handles authentication, configuration retrieval, and updates.
 
 import asyncio
 import json
+import os
 from typing import Dict, Any, Optional
 from urllib.parse import urljoin
 import httpx
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
 
 from .utils import logger, safe_json_dump
 
@@ -49,6 +52,18 @@ class APIClient:
         self.timeout = timeout
         self.max_retries = max_retries
         
+        # Configure SSL verification from environment variable
+        # Default to False for development with self-signed certificates
+        ssl_verify_env = os.getenv('SSL_VERIFY', 'false').lower()
+        self.ssl_verify = ssl_verify_env in ['true', '1', 'yes', 'on']
+        
+        # Disable SSL warnings if verification is disabled
+        if not self.ssl_verify:
+            urllib3.disable_warnings(InsecureRequestWarning)
+            logger.info("⚠️  SSL certificate verification disabled")
+        else:
+            logger.info("✅ SSL certificate verification enabled")
+        
         # Ensure domain has protocol
         if not self.domain.startswith(('http://', 'https://')):
             self.domain = f"https://{self.domain}"
@@ -56,6 +71,7 @@ class APIClient:
         self.base_url = self.domain
         self.session: Optional[httpx.AsyncClient] = None
         self.auth_token: Optional[str] = None
+        self.auth_cookies: Optional[str] = None
         self._authenticated = False
     
     async def __aenter__(self):
@@ -69,10 +85,14 @@ class APIClient:
     
     async def connect(self):
         """Establish connection and authenticate."""
+        # Create client with SSL verification setting
         self.session = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout),
-            follow_redirects=True
+            follow_redirects=True,
+            verify=self.ssl_verify  # Use the configurable SSL setting
         )
+        
+        logger.debug(f"Created HTTP client with SSL verify={self.ssl_verify}")
         await self.authenticate()
     
     async def disconnect(self):
@@ -82,10 +102,13 @@ class APIClient:
             self.session = None
         self._authenticated = False
         self.auth_token = None
+        self.auth_cookies = None
     
     async def authenticate(self):
         """
         Authenticate with the API and obtain access token.
+        
+        Uses the correct endpoint and format for your API.
         
         Raises:
             AuthenticationError: If authentication fails
@@ -93,10 +116,12 @@ class APIClient:
         if not self.session:
             raise APIError("Session not initialized. Call connect() first.")
         
-        login_url = urljoin(self.base_url, "/auth/login")
-        login_data = {
+        # Use the correct login endpoint from your reference script
+        login_url = urljoin(self.base_url, "/token/qts/login")
+        login_request = {
             "username": self.username,
-            "password": self.password
+            "password": self.password,
+            "token": "token"
         }
         
         logger.debug(f"Authenticating with {login_url}")
@@ -105,17 +130,20 @@ class APIClient:
             response = await self._make_request(
                 method="POST",
                 url=login_url,
-                json=login_data,
+                json=login_request,
                 require_auth=False
             )
             
-            # Extract token from response
+            # Extract token from response (based on your reference script)
             if "token" in response:
                 self.auth_token = response["token"]
-            elif "access_token" in response:
-                self.auth_token = response["access_token"]
+                logger.debug("Successfully extracted token from response")
             else:
                 raise AuthenticationError("No token found in authentication response")
+            
+            # Extract cookies from the response headers
+            # Note: httpx handles cookies automatically, but we may need them for headers
+            self.auth_cookies = None  # httpx will manage cookies automatically
             
             self._authenticated = True
             logger.info("✅ Authentication successful")
@@ -127,12 +155,16 @@ class APIClient:
                 raise AuthenticationError("Access forbidden")
             else:
                 raise AuthenticationError(f"Authentication failed: {e.response.status_code}")
+        except httpx.ConnectError as e:
+            raise AuthenticationError(f"Connection error: {str(e)}")
+        except httpx.TimeoutException as e:
+            raise AuthenticationError(f"Connection timeout: {str(e)}")
         except Exception as e:
             raise AuthenticationError(f"Authentication error: {str(e)}")
     
     async def get_configuration(self, config_id: str) -> Dict[str, Any]:
         """
-        Retrieve configuration by ID.
+        Retrieve configuration by ID using V2 endpoint.
         
         Args:
             config_id: Configuration ID
@@ -146,6 +178,7 @@ class APIClient:
         if not self._authenticated:
             raise APIError("Not authenticated. Call authenticate() first.")
         
+        # Use V2 endpoint - THIS IS THE KEY FIX
         config_url = urljoin(self.base_url, f"/analysis/v2/configuration/{config_id}")
         
         logger.debug(f"Retrieving configuration: {config_id}")
@@ -167,7 +200,7 @@ class APIClient:
     
     async def update_configuration(self, config_id: str, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Update configuration with new data.
+        Update configuration with new data using V2 endpoint.
         
         Args:
             config_id: Configuration ID
@@ -182,6 +215,7 @@ class APIClient:
         if not self._authenticated:
             raise APIError("Not authenticated. Call authenticate() first.")
         
+        # Use V2 endpoint - THIS IS THE KEY FIX
         config_url = urljoin(self.base_url, f"/analysis/v2/configuration/{config_id}")
         
         logger.debug(f"Updating configuration: {config_id}")
@@ -276,7 +310,7 @@ class APIClient:
                     logger.debug(f"Retrying request in {wait_time}s (attempt {attempt + 1})")
                     await asyncio.sleep(wait_time)
                 
-                logger.debug(f"{method} {url}")
+                logger.debug(f"{method} {url} (SSL verify: {self.ssl_verify})")
                 response = await self.session.request(method, url, **kwargs)
                 response.raise_for_status()
                 
@@ -296,7 +330,7 @@ class APIClient:
                 else:
                     # Don't retry on client errors or final attempt
                     raise
-            except (httpx.RequestError, httpx.TimeoutException) as e:
+            except (httpx.RequestError, httpx.TimeoutException, httpx.ConnectError) as e:
                 if attempt < self.max_retries:
                     last_exception = e
                     logger.warning(f"Request error, retrying: {str(e)}")
@@ -312,7 +346,7 @@ class APIClient:
     
     async def test_connection(self) -> bool:
         """
-        Test API connection and authentication.
+        Test API connection and authentication using V2 endpoint.
         
         Returns:
             True if connection successful, False otherwise
@@ -321,8 +355,8 @@ class APIClient:
             if not self.session:
                 await self.connect()
             
-            # Try to make a simple authenticated request
-            test_url = urljoin(self.base_url, "/auth/profile")
+            # Use V2 endpoint for testing - THIS IS THE KEY FIX
+            test_url = urljoin(self.base_url, "/analysis/v2/configuration")
             await self._make_request("GET", test_url)
             
             logger.info("✅ Connection test successful")

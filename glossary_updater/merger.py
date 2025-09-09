@@ -1,10 +1,13 @@
 """
-Configuration merger for updating glossary terms with comprehensive validation.
+Configuration merger for updating glossary terms with JSON Schema validation.
 
 Handles merging or overwriting glossary terms in API configurations with safety checks.
 """
 
 import copy
+import json
+import os
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 
@@ -17,229 +20,133 @@ class MergeError(Exception):
     pass
 
 
+def _install_jsonschema():
+    """Install jsonschema if not available."""
+    try:
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'jsonschema'])
+        logger.info("jsonschema installed successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to install jsonschema: {e}")
+        return False
+
+
+# Try to import jsonschema
+try:
+    import jsonschema
+    from jsonschema import validate, ValidationError
+    JSONSCHEMA_AVAILABLE = True
+except ImportError:
+    jsonschema = None
+    validate = None
+    ValidationError = None
+    JSONSCHEMA_AVAILABLE = False
+
+
 class ConfigurationValidator:
-    """Validates configuration structure and content."""
+    """Validates configuration structure using JSON Schema."""
     
-    def __init__(self, schema: Optional[Dict[str, Any]] = None):
-        """Initialize with optional configuration schema."""
-        self.schema = schema or self.get_default_schema()
+    def __init__(self, schema_file: str = "qvscribe_schema_3_1_0.json"):
+        """
+        Initialize with JSON Schema file.
+        
+        Args:
+            schema_file: Path to JSON schema file.
+        """
+        global jsonschema, validate, ValidationError, JSONSCHEMA_AVAILABLE
+        
+        if not JSONSCHEMA_AVAILABLE:
+            logger.warning("jsonschema library not available. Installing...")
+            if _install_jsonschema():
+                try:
+                    import jsonschema
+                    from jsonschema import validate, ValidationError
+                    JSONSCHEMA_AVAILABLE = True
+                except ImportError as e:
+                    raise ImportError(f"jsonschema library is required but could not be installed: {e}")
+            else:
+                raise ImportError("jsonschema library is required but not available and could not be installed")
+        
+        self.schema_file = schema_file
+        self.schema = self.load_schema()
     
-    def get_default_schema(self) -> Dict[str, Any]:
-        """Get default configuration validation schema."""
-        return {
-            "required_fields": ["analysisEntityList", "resourceList"],
-            "analysisEntityList": {
-                "type": "array",
-                "required_item_fields": ["id", "name"],
-                "max_entities": 100
-            },
-            "resourceList": {
-                "type": "array", 
-                "required_item_fields": ["id"],
-                "max_resources": 1000
-            },
-            "glossary_entity": {
-                "id_pattern": r"^[a-f0-9\-]+$",
-                "required_fields": ["id", "name", "type", "resources"],
-                "max_terms_per_resource": 5000
-            }
-        }
+    def load_schema(self) -> Dict[str, Any]:
+        """Load JSON schema from file."""
+        schema_path = Path(self.schema_file)
+        
+        if not schema_path.exists():
+            raise FileNotFoundError(f"Schema file not found: {schema_path}")
+        
+        try:
+            with open(schema_path, 'r') as f:
+                schema = json.load(f)
+            logger.debug(f"Loaded JSON schema from {schema_path}")
+            return schema
+        except Exception as e:
+            logger.error(f"Failed to load schema from {schema_path}: {e}")
+            raise
     
     def validate_configuration(self, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """
-        Comprehensive configuration validation.
+        Validate configuration against JSON schema.
         
+        Args:
+            config: Configuration to validate
+            
         Returns:
-            Tuple of (is_valid, list_of_errors)
+            Tuple of (is_valid, list_of_error_messages)
         """
-        errors = []
+        if not isinstance(config, dict):
+            return False, ["Configuration must be a dictionary/object"]
         
         try:
-            # Basic structure validation
-            if not isinstance(config, dict):
-                errors.append("Configuration must be a dictionary")
-                return False, errors
+            # Validate against JSON schema
+            validate(instance=config, schema=self.schema)
+            logger.debug("Configuration passed JSON schema validation")
+            return True, []
             
-            # Check required top-level fields
-            for field in self.schema["required_fields"]:
-                if field not in config:
-                    errors.append(f"Missing required field: {field}")
+        except ValidationError as e:
+            # Convert validation error to readable message
+            error_path = " -> ".join(str(p) for p in e.path) if e.path else "root"
+            error_msg = f"Validation error at '{error_path}': {e.message}"
             
-            # Validate analysisEntityList
-            if "analysisEntityList" in config:
-                entity_errors = self._validate_entity_list(config["analysisEntityList"])
-                errors.extend(entity_errors)
-            
-            # Validate resourceList
-            if "resourceList" in config:
-                resource_errors = self._validate_resource_list(config["resourceList"])
-                errors.extend(resource_errors)
-            
-            # Cross-reference validation
-            cross_ref_errors = self._validate_cross_references(config)
-            errors.extend(cross_ref_errors)
-            
-            return len(errors) == 0, errors
+            logger.debug(f"JSON Schema validation failed: {error_msg}")
+            return False, [error_msg]
             
         except Exception as e:
-            errors.append(f"Configuration validation error: {str(e)}")
-            return False, errors
-    
-    def _validate_entity_list(self, entity_list: Any) -> List[str]:
-        """Validate analysisEntityList structure."""
-        errors = []
-        
-        if not isinstance(entity_list, list):
-            errors.append("analysisEntityList must be an array")
-            return errors
-        
-        if len(entity_list) > self.schema["analysisEntityList"]["max_entities"]:
-            errors.append(f"Too many entities (max: {self.schema['analysisEntityList']['max_entities']})")
-        
-        entity_ids = set()
-        for i, entity in enumerate(entity_list):
-            if not isinstance(entity, dict):
-                errors.append(f"Entity {i} must be an object")
-                continue
-            
-            # Check required fields
-            for field in self.schema["analysisEntityList"]["required_item_fields"]:
-                if field not in entity:
-                    errors.append(f"Entity {i} missing required field: {field}")
-            
-            # Check for duplicate IDs
-            entity_id = entity.get("id")
-            if entity_id:
-                if entity_id in entity_ids:
-                    errors.append(f"Duplicate entity ID: {entity_id}")
-                entity_ids.add(entity_id)
-            
-            # Validate glossary entity if present
-            if entity.get("type") == "glossary" or entity.get("name", "").lower() == "glossary":
-                glossary_errors = self._validate_glossary_entity(entity, i)
-                errors.extend(glossary_errors)
-        
-        return errors
-    
-    def _validate_resource_list(self, resource_list: Any) -> List[str]:
-        """Validate resourceList structure."""
-        errors = []
-        
-        if not isinstance(resource_list, list):
-            errors.append("resourceList must be an array")
-            return errors
-        
-        if len(resource_list) > self.schema["resourceList"]["max_resources"]:
-            errors.append(f"Too many resources (max: {self.schema['resourceList']['max_resources']})")
-        
-        resource_ids = set()
-        for i, resource in enumerate(resource_list):
-            if not isinstance(resource, dict):
-                errors.append(f"Resource {i} must be an object")
-                continue
-            
-            # Check required fields
-            for field in self.schema["resourceList"]["required_item_fields"]:
-                if field not in resource:
-                    errors.append(f"Resource {i} missing required field: {field}")
-            
-            # Check for duplicate IDs
-            resource_id = resource.get("id")
-            if resource_id:
-                if resource_id in resource_ids:
-                    errors.append(f"Duplicate resource ID: {resource_id}")
-                resource_ids.add(resource_id)
-            
-            # Validate glossary resource content
-            if resource.get("type") == "glossary" and "glossary" in resource:
-                glossary_errors = self._validate_glossary_resource(resource, i)
-                errors.extend(glossary_errors)
-        
-        return errors
-    
-    def _validate_glossary_entity(self, entity: Dict[str, Any], index: int) -> List[str]:
-        """Validate glossary entity structure."""
-        errors = []
-        
-        # Check required glossary fields
-        for field in self.schema["glossary_entity"]["required_fields"]:
-            if field not in entity:
-                errors.append(f"Glossary entity {index} missing required field: {field}")
-        
-        # Validate resources array
-        resources = entity.get("resources", [])
-        if not isinstance(resources, list):
-            errors.append(f"Glossary entity {index} resources must be an array")
-        
-        return errors
-    
-    def _validate_glossary_resource(self, resource: Dict[str, Any], index: int) -> List[str]:
-        """Validate glossary resource content."""
-        errors = []
-        
-        glossary_data = resource.get("glossary", [])
-        if not isinstance(glossary_data, list):
-            errors.append(f"Glossary resource {index} glossary field must be an array")
-            return errors
-        
-        # Check term count
-        max_terms = self.schema["glossary_entity"]["max_terms_per_resource"]
-        if len(glossary_data) > max_terms:
-            errors.append(f"Glossary resource {index} has too many terms (max: {max_terms})")
-        
-        # Validate individual terms
-        for term_idx, term in enumerate(glossary_data):
-            if not isinstance(term, dict):
-                errors.append(f"Glossary term {term_idx} in resource {index} must be an object")
-                continue
-            
-            if "phrase" not in term:
-                errors.append(f"Glossary term {term_idx} in resource {index} missing phrase")
-            
-            if "definition" not in term:
-                errors.append(f"Glossary term {term_idx} in resource {index} missing definition")
-        
-        return errors
-    
-    def _validate_cross_references(self, config: Dict[str, Any]) -> List[str]:
-        """Validate cross-references between entities and resources."""
-        errors = []
-        
-        # Get all resource IDs
-        resource_ids = set()
-        for resource in config.get("resourceList", []):
-            if "id" in resource:
-                resource_ids.add(resource["id"])
-        
-        # Check entity resource references
-        for i, entity in enumerate(config.get("analysisEntityList", [])):
-            entity_resources = entity.get("resources", [])
-            for resource_ref in entity_resources:
-                if resource_ref not in resource_ids:
-                    errors.append(f"Entity {i} references non-existent resource: {resource_ref}")
-        
-        return errors
+            error_msg = f"Schema validation error: {str(e)}"
+            logger.error(error_msg)
+            return False, [error_msg]
 
 
 class ConfigurationMerger:
-    """Handles merging glossary terms into configurations with validation."""
+    """Handles merging glossary terms into configurations with JSON schema validation."""
     
-    def __init__(self, validation_schema: Optional[Dict[str, Any]] = None):
-        """Initialize configuration merger with optional validation schema."""
+    def __init__(self, schema_file: str = "qvscribe_schema_3_1_0.json"):
+        """
+        Initialize configuration merger with JSON schema validation.
+        
+        Args:
+            schema_file: Path to JSON schema file for validation
+        """
         self.glossary_entity_id = "676c6f73-7361-7279-3132-333435363738"
-        self.validator = ConfigurationValidator(validation_schema)
+        self.validator = ConfigurationValidator(schema_file)
     
     def merge_glossary_terms(self, 
                            config: Dict[str, Any], 
                            terms: List[GlossaryTerm],
-                           strategy: str = "merge") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+                           strategy: str = "merge",
+                           skip_validation: bool = False) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
-        Merge glossary terms into configuration with comprehensive validation.
+        Merge glossary terms into configuration with JSON schema validation.
         
         Args:
             config: Original configuration
             terms: List of validated glossary terms
             strategy: Merge strategy ("merge" or "overwrite")
+            skip_validation: Skip validation (useful for testing)
             
         Returns:
             Tuple of (updated_config, merge_stats)
@@ -249,11 +156,15 @@ class ConfigurationMerger:
         
         logger.info(f"Starting {strategy} operation with {len(terms)} terms")
         
-        # Step 1: Validate input configuration
-        logger.debug("Validating input configuration...")
-        is_valid, validation_errors = self.validator.validate_configuration(config)
-        if not is_valid:
-            raise MergeError(f"Input configuration validation failed: {'; '.join(validation_errors[:5])}")
+        # Step 1: Validate input configuration (unless skipped)
+        if not skip_validation:
+            logger.debug("Validating input configuration against JSON schema...")
+            is_valid, validation_errors = self.validator.validate_configuration(config)
+            if not is_valid:
+                logger.warning(f"Configuration validation failed: {validation_errors}")
+                raise MergeError(f"Input configuration validation failed: {'; '.join(validation_errors[:3])}")
+        else:
+            logger.debug("Skipping input validation as requested")
         
         # Step 2: Create working copy
         updated_config = copy.deepcopy(config)
@@ -269,6 +180,7 @@ class ConfigurationMerger:
             "terms_removed": 0,
             "glossary_entity_found": False,
             "validation_passed": True,
+            "validation_skipped": skip_validation,
             "backup_created": True,
             "timestamp": datetime.now().isoformat()
         }
@@ -281,7 +193,7 @@ class ConfigurationMerger:
             
             # Step 4: Extract existing terms
             logger.debug("Extracting existing terms...")
-            existing_terms = self._extract_existing_terms(updated_config, glossary_entity)
+            existing_terms = self._extract_existing_terms(updated_config)
             merge_stats["terms_before"] = len(existing_terms)
             
             # Step 5: Perform merge operation
@@ -300,12 +212,14 @@ class ConfigurationMerger:
             self._update_configuration_with_terms(updated_config, glossary_entity, final_terms)
             merge_stats["terms_after"] = len(final_terms)
             
-            # Step 7: Validate final configuration
-            logger.debug("Validating final configuration...")
-            final_valid, final_errors = self.validator.validate_configuration(updated_config)
-            if not final_valid:
-                merge_stats["validation_passed"] = False
-                raise MergeError(f"Final configuration validation failed: {'; '.join(final_errors[:5])}")
+            # Step 7: Validate final configuration (unless skipped)
+            if not skip_validation:
+                logger.debug("Validating final configuration against JSON schema...")
+                final_valid, final_errors = self.validator.validate_configuration(updated_config)
+                if not final_valid:
+                    merge_stats["validation_passed"] = False
+                    logger.warning(f"Final configuration validation failed: {final_errors}")
+                    raise MergeError(f"Final configuration validation failed: {'; '.join(final_errors[:3])}")
             
             # Step 8: Log results
             self._log_merge_results(merge_stats)
@@ -319,13 +233,15 @@ class ConfigurationMerger:
     
     def _find_or_create_glossary_entity(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Find existing glossary entity or create a new one."""
-        entity_list = config.get("analysisEntityList", [])
+        # Your API structure has data.analysisEntityList
+        data = config.get("data", {})
+        entity_list = data.get("analysisEntityList", [])
         
         # Look for existing glossary entity
         for entity in entity_list:
             if (entity.get("id") == self.glossary_entity_id or 
-                entity.get("name", "").lower() == "glossary" or
-                entity.get("type") == "glossary"):
+                entity.get("entityName", "").lower() == "glossary" or
+                entity.get("detectionEngine") == "glossary"):
                 logger.debug("Found existing glossary entity")
                 return entity
         
@@ -333,81 +249,45 @@ class ConfigurationMerger:
         logger.info("Creating new glossary entity")
         new_entity = {
             "id": self.glossary_entity_id,
-            "name": "Glossary",
-            "type": "glossary",
+            "entityName": "Glossary",
+            "detectionEngine": "glossary",
             "enabled": True,
-            "resources": [],
-            "searchOrder": len(entity_list) + 1,
-            "description": "Automatically managed glossary terms",
-            "created": datetime.now().isoformat(),
-            "updated": datetime.now().isoformat()
+            "resources": []
         }
         
         entity_list.append(new_entity)
-        config["analysisEntityList"] = entity_list
+        data["analysisEntityList"] = entity_list
         
         return new_entity
     
-    def _extract_existing_terms(self, 
-                               config: Dict[str, Any], 
-                               glossary_entity: Dict[str, Any]) -> List[GlossaryTerm]:
-        """Extract existing glossary terms with validation."""
+    def _extract_existing_terms(self, config: Dict[str, Any]) -> List[GlossaryTerm]:
+        """Extract existing glossary terms from resourceList."""
         existing_terms = []
-        resource_list = config.get("resourceList", [])
-        resource_ids = glossary_entity.get("resources", [])
         
-        for resource_id in resource_ids:
-            # Find resource in resourceList
-            for resource in resource_list:
-                if resource.get("id") == resource_id:
-                    try:
-                        terms_from_resource = self._extract_terms_from_resource(resource)
-                        existing_terms.extend(terms_from_resource)
-                    except Exception as e:
-                        logger.warning(f"Failed to extract terms from resource {resource_id}: {str(e)}")
-                    break
+        # Your API structure has data.resourceList
+        data = config.get("data", {})
+        resource_list = data.get("resourceList", [])
         
-        logger.debug(f"Found {len(existing_terms)} existing terms")
-        return existing_terms
-    
-    def _extract_terms_from_resource(self, resource: Dict[str, Any]) -> List[GlossaryTerm]:
-        """Extract glossary terms from a resource with validation."""
-        terms = []
-        
-        # Check glossary array structure
-        if "glossary" in resource and isinstance(resource["glossary"], list):
-            for i, item in enumerate(resource["glossary"]):
+        # Look for glossary terms in resourceList
+        # Based on your schema, glossary terms have: id, phrase, definition
+        for resource in resource_list:
+            if "phrase" in resource and "definition" in resource:
                 try:
-                    if isinstance(item, dict) and "phrase" in item and "definition" in item:
-                        # Basic validation of existing terms
-                        phrase = str(item["phrase"]).strip()
-                        definition = str(item["definition"]).strip()
-                        
-                        if phrase and definition:
-                            term = GlossaryTerm(
-                                phrase=phrase,
-                                definition=definition,
-                                metadata=item.get("metadata", {})
-                            )
-                            terms.append(term)
-                        else:
-                            logger.debug(f"Skipping empty term at index {i}")
-                    else:
-                        logger.debug(f"Skipping malformed term at index {i}")
-                except Exception as e:
-                    logger.warning(f"Error processing existing term {i}: {str(e)}")
-        
-        # Handle legacy formats
-        elif "terms" in resource and isinstance(resource["terms"], dict):
-            for phrase, definition in resource["terms"].items():
-                try:
+                    phrase = str(resource["phrase"]).strip()
+                    definition = str(resource["definition"]).strip()
+                    
                     if phrase and definition:
-                        term = GlossaryTerm(phrase=str(phrase), definition=str(definition))
-                        terms.append(term)
+                        term = GlossaryTerm(
+                            phrase=phrase,
+                            definition=definition,
+                            metadata={"resource_id": resource.get("id", "")}
+                        )
+                        existing_terms.append(term)
                 except Exception as e:
-                    logger.warning(f"Error processing legacy term '{phrase}': {str(e)}")
+                    logger.warning(f"Error processing existing term: {str(e)}")
         
-        return terms
+        logger.debug(f"Found {len(existing_terms)} existing glossary terms")
+        return existing_terms
     
     def _merge_terms(self, existing_terms: List[GlossaryTerm], 
                     new_terms: List[GlossaryTerm]) -> List[GlossaryTerm]:
@@ -441,47 +321,35 @@ class ConfigurationMerger:
                                        glossary_entity: Dict[str, Any],
                                        terms: List[GlossaryTerm]) -> None:
         """Update configuration with validated terms."""
-        # Ensure resourceList exists
-        if "resourceList" not in config:
-            config["resourceList"] = []
+        data = config.get("data", {})
+        resource_list = data.get("resourceList", [])
         
-        # Clear existing glossary resources
-        resource_list = config["resourceList"]
-        existing_resource_ids = set(glossary_entity.get("resources", []))
+        # Remove existing glossary terms (resources with phrase/definition)
+        resource_list = [r for r in resource_list 
+                        if not ("phrase" in r and "definition" in r)]
         
-        # Remove old glossary resources
-        config["resourceList"] = [r for r in resource_list 
-                                if r.get("id") not in existing_resource_ids]
-        
-        # Create new resource with all terms
-        if terms:
+        # Add new glossary terms as individual resources
+        new_resource_ids = []
+        for term in terms:
             resource_id = generate_resource_id()
-            
-            # Validate term count
-            max_terms = self.validator.schema["glossary_entity"]["max_terms_per_resource"]
-            if len(terms) > max_terms:
-                logger.warning(f"Term count ({len(terms)}) exceeds recommended maximum ({max_terms})")
+            new_resource_ids.append(resource_id)
             
             glossary_resource = {
                 "id": resource_id,
-                "alias": f"Glossary Terms ({len(terms)} terms)",
-                "type": "glossary",
-                "searchOrder": 1,
-                "created": datetime.now().isoformat(),
-                "updated": datetime.now().isoformat(),
-                "glossary": [term.to_dict() for term in terms]
+                "phrase": term.phrase,
+                "definition": term.definition
             }
             
-            # Add to resource list
-            config["resourceList"].append(glossary_resource)
-            
-            # Update entity to reference this resource
-            glossary_entity["resources"] = [resource_id]
-            glossary_entity["updated"] = datetime.now().isoformat()
-        else:
-            # No terms, clear resources
-            glossary_entity["resources"] = []
-            glossary_entity["updated"] = datetime.now().isoformat()
+            resource_list.append(glossary_resource)
+        
+        # Update the data structure
+        data["resourceList"] = resource_list
+        config["data"] = data
+        
+        # Update entity to reference the new resources
+        glossary_entity["resources"] = new_resource_ids
+        
+        logger.debug(f"Updated configuration with {len(terms)} glossary terms")
     
     def _log_merge_results(self, stats: Dict[str, Any]) -> None:
         """Log merge operation results."""
@@ -507,10 +375,13 @@ class ConfigurationMerger:
         else:
             logger.info(f"  Net change: 0 terms")
         
-        logger.info(f"  Validation: {'PASSED' if stats['validation_passed'] else 'FAILED'}")
+        if stats.get('validation_skipped'):
+            logger.info(f"  Validation: SKIPPED")
+        else:
+            logger.info(f"  Validation: {'PASSED' if stats['validation_passed'] else 'FAILED'}")
     
     def validate_configuration_structure(self, config: Dict[str, Any]) -> List[str]:
-        """Validate configuration structure (public interface)."""
+        """Validate configuration structure using JSON schema."""
         is_valid, errors = self.validator.validate_configuration(config)
         return errors
     
@@ -520,100 +391,20 @@ class ConfigurationMerger:
             "config_id": config_id,
             "timestamp": datetime.now().isoformat(),
             "original_size": len(str(config)),
-            "entities_count": len(config.get("analysisEntityList", [])),
-            "resources_count": len(config.get("resourceList", [])),
-            "validation_passed": True,
             "backup_config": copy.deepcopy(config)
         }
         
+        # Get counts from your API structure
+        data = config.get("data", {})
+        backup_info["entities_count"] = len(data.get("analysisEntityList", []))
+        backup_info["resources_count"] = len(data.get("resourceList", []))
+        
         # Validate backup
         is_valid, errors = self.validator.validate_configuration(config)
+        backup_info["validation_passed"] = is_valid
         if not is_valid:
-            backup_info["validation_passed"] = False
             backup_info["validation_errors"] = errors
             logger.warning(f"Backup validation found issues: {len(errors)} errors")
         
-        logger.debug(f"Created validated backup for configuration {config_id}")
+        logger.debug(f"Created backup for configuration {config_id}")
         return backup_info
-    
-    def get_merge_preview(self, 
-                         config: Dict[str, Any],
-                         terms: List[GlossaryTerm],
-                         strategy: str = "merge") -> Dict[str, Any]:
-        """Get a preview of merge operation with validation."""
-        # Validate input configuration first
-        is_valid, validation_errors = self.validator.validate_configuration(config)
-        
-        preview = {
-            "strategy": strategy,
-            "input_valid": is_valid,
-            "validation_errors": validation_errors if not is_valid else [],
-            "terms_provided": len(terms),
-            "terms_current": 0,
-            "terms_after": 0,
-            "glossary_entity_exists": False,
-            "terms_that_would_be_added": [],
-            "terms_that_would_be_updated": [],
-            "terms_that_would_be_removed": []
-        }
-        
-        if not is_valid:
-            preview["error"] = "Configuration validation failed"
-            return preview
-        
-        try:
-            # Find glossary entity
-            entity_list = config.get("analysisEntityList", [])
-            glossary_entity = None
-            
-            for entity in entity_list:
-                if (entity.get("id") == self.glossary_entity_id or 
-                    entity.get("name", "").lower() == "glossary" or
-                    entity.get("type") == "glossary"):
-                    glossary_entity = entity
-                    break
-            
-            preview["glossary_entity_exists"] = glossary_entity is not None
-            
-            # Get existing terms
-            existing_terms = []
-            if glossary_entity:
-                existing_terms = self._extract_existing_terms(config, glossary_entity)
-            
-            preview["terms_current"] = len(existing_terms)
-            
-            # Calculate preview based on strategy
-            if strategy == "merge":
-                existing_phrases = {t.phrase.lower(): t for t in existing_terms}
-                
-                for term in terms:
-                    phrase_lower = term.phrase.lower()
-                    if phrase_lower in existing_phrases:
-                        if existing_phrases[phrase_lower].definition != term.definition:
-                            preview["terms_that_would_be_updated"].append({
-                                "phrase": term.phrase,
-                                "old_definition": existing_phrases[phrase_lower].definition,
-                                "new_definition": term.definition
-                            })
-                    else:
-                        preview["terms_that_would_be_added"].append({
-                            "phrase": term.phrase,
-                            "definition": term.definition
-                        })
-                        
-                preview["terms_after"] = len(existing_terms) + len(preview["terms_that_would_be_added"])
-                
-            else:  # overwrite
-                preview["terms_that_would_be_added"] = [
-                    {"phrase": t.phrase, "definition": t.definition} for t in terms
-                ]
-                preview["terms_that_would_be_removed"] = [
-                    {"phrase": t.phrase, "definition": t.definition} for t in existing_terms
-                ]
-                preview["terms_after"] = len(terms)
-            
-            return preview
-            
-        except Exception as e:
-            preview["error"] = f"Preview generation failed: {str(e)}"
-            return preview

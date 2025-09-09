@@ -1,0 +1,160 @@
+{
+	"$id": "https://qracorp.com/schema/config_3_1.schema.json",
+	"type": "object",
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"additionalProperties": false,
+	"required": [ "data", "configurationId", "configurationName", "configurationVersion", "configurationSchemaVersion" ],
+	"properties": {
+		"configurationId": {
+			"type": "string"
+		},
+		"configurationName": {
+			"type": "string"
+		},
+		"configurationSchemaVersion": {
+			"type": "string"
+		},
+		"configurationVersion": {
+			"type": "integer"
+		},
+		"data": {
+			"$ref": "#/definitions/data"
+		}
+	},
+	"definitions": {
+		"data": {
+			"type": "object",
+			"properties": {
+				"analysisEntityList": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {							
+							"detectionEngine": {
+								"type": "string"
+							},
+							"entityName": {
+								"type": "string"
+							},
+							"enabled": {
+								"type": "boolean"
+							},
+							"id": {
+								"type": "string"
+							},
+							"resources": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							}
+						},
+						"required": [ "detectionEngine", "entityName", "enabled", "id", "resources" ]
+					}
+				},
+				"resourceList": {
+					"type": "array",
+					"uniqueItems": true,
+					"definitions": {
+						"alias": {
+							"type": "string"
+						},
+						"id": {
+							"type": "string"
+						}
+					},
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"alias": {
+										"$ref": "#/definitions/data/properties/resourceList/definitions/alias"
+									},
+									"id": {
+										"$ref": "#/definitions/data/properties/resourceList/definitions/id"
+									},
+									"phrases": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									},
+									"searchOrder": {
+										"type": "integer"
+									}
+								},
+								"required": [ "alias", "id", "phrases", "searchOrder" ]
+							},
+							{
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"abbreviations": {
+										"type": "array"
+									},
+									"alias": {
+										"$ref": "#/definitions/data/properties/resourceList/definitions/alias"
+									},
+									"id": {
+										"$ref": "#/definitions/data/properties/resourceList/definitions/id"
+									},
+									"quantityType": {
+										"type": "string"
+									},
+									"enabled": {
+										"type": "boolean"
+									},
+									"unitSystems": {
+										"type": "array"
+									}
+								},
+								"required": [ "abbreviations", "alias", "id", "quantityType", "enabled", "unitSystems" ]
+							},
+							{
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"id": {
+										"$ref": "#/definitions/data/properties/resourceList/definitions/id"
+									},
+									"alias": {
+										"$ref": "#/definitions/data/properties/resourceList/definitions/alias"
+									},
+									"list": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									}
+								},
+								"required": [ "alias", "id", "list" ]
+							},
+							{
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"id": {
+										"$ref": "#/definitions/data/properties/resourceList/definitions/id"
+									},
+									"phrase": {
+										"type": "string"
+									},
+									"definition": {
+										"type": "string"
+									}
+								},
+								"required": [ "id", "phrase", "definition" ]
+							}
+						]
+					}
+				}
+			},
+			"required": [ "analysisEntityList", "resourceList" ],
+			"additionalProperties": false
+		}
+	}
+}

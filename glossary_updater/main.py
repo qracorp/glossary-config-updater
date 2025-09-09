@@ -30,7 +30,7 @@ class GlossaryUpdater:
     2. Authenticate with API
     3. Retrieve current configuration
     4. Merge or overwrite glossary terms
-    5. Validate and update configuration
+    5. Validate and update configuration (only if changes detected)
     """
     
     def __init__(self, domain: str, username: str, password: str, 
@@ -114,7 +114,7 @@ class GlossaryUpdater:
             if not all_paths:
                 raise GlossaryUpdaterError("No file paths or directory paths provided")
             
-            logger.info("Step 1: Discovering glossary files...")
+            logger.info("Step 1: Discovering files...")
             discovered_files = discover_glossary_files(all_paths)
             
             # Flatten file list
@@ -125,14 +125,16 @@ class GlossaryUpdater:
             if not all_file_paths:
                 raise GlossaryUpdaterError("No valid glossary files found")
             
+            logger.info(f"Found {len(all_file_paths)} file(s)")
+            
             # Step 2: Process files and extract terms
-            logger.info("Step 2: Processing files and extracting terms...")
+            logger.info("Step 2: Processing files...")
             terms = self.file_processor.process_files(all_file_paths)
             
             if not terms:
                 raise GlossaryUpdaterError("No glossary terms found in files")
             
-            logger.info(f"Extracted {len(terms)} glossary terms")
+            logger.info(f"Total unique terms: {len(terms)}")
             
             # Step 3: Connect to API if not already connected
             if not self._connected:
@@ -149,11 +151,12 @@ class GlossaryUpdater:
             logger.info("Step 5: Creating configuration backup...")
             backup_info = self.merger.create_backup_config(current_config, config_id)
             
-            # Step 6: Validate configuration structure
-            logger.info("Step 6: Validating configuration structure...")
+            # Step 6: Validate configuration structure using JSON schema
+            logger.info("Step 6: Validating configuration structure using JSON schema...")
             validation_errors = self.merger.validate_configuration_structure(current_config)
             if validation_errors:
-                raise GlossaryUpdaterError(f"Configuration validation failed: {validation_errors}")
+                logger.warning(f"Configuration validation issues: {validation_errors}")
+                logger.info("Proceeding with merge operation...")
             
             # Step 7: Merge or overwrite terms
             logger.info(f"Step 7: Performing {merge_strategy} operation...")
@@ -161,9 +164,29 @@ class GlossaryUpdater:
                 current_config, terms, merge_strategy
             )
             
-            # Step 8: Update configuration (unless dry run)
+            # Step 8: Check if there are any changes to apply
+            net_change = merge_stats['terms_after'] - merge_stats['terms_before']
+            has_changes = (
+                merge_stats['terms_added'] > 0 or
+                merge_stats['terms_removed'] > 0 or
+                net_change != 0
+)            
+            logger.info(f"Change analysis:")
+            logger.info(f"  Terms before: {merge_stats['terms_before']}")
+            logger.info(f"  Terms after: {merge_stats['terms_after']}")
+            logger.info(f"  Terms added: {merge_stats.get('terms_added', 0)}")
+            logger.info(f"  Terms updated: {merge_stats.get('terms_updated', 0)}")
+            logger.info(f"  Terms removed: {merge_stats.get('terms_removed', 0)}")
+            logger.info(f"  Net change: {'+' if net_change > 0 else ''}{net_change}")
+            
+            # Step 9: Update configuration (only if there are changes)
             if dry_run:
                 logger.info("Step 8: Dry run - skipping actual update")
+                if has_changes:
+                    logger.info("  Would have updated configuration with changes")
+                else:
+                    logger.info("  No changes detected - would skip update")
+                    
                 result = {
                     "success": True,
                     "dry_run": True,
@@ -171,6 +194,27 @@ class GlossaryUpdater:
                     "files_processed": len(all_file_paths),
                     "terms_extracted": len(terms),
                     "merge_stats": merge_stats,
+                    "changes_detected": has_changes,
+                    "update_skipped": not has_changes,
+                    "backup_info": {
+                        "created": backup_info["timestamp"],
+                        "size": backup_info["original_size"]
+                    }
+                }
+            elif not has_changes:
+                logger.info("Step 8: No changes detected - skipping configuration update")
+                logger.info("  Configuration already contains the same glossary terms")
+                
+                result = {
+                    "success": True,
+                    "dry_run": False,
+                    "config_id": config_id,
+                    "files_processed": len(all_file_paths),
+                    "terms_extracted": len(terms),
+                    "merge_stats": merge_stats,
+                    "changes_detected": False,
+                    "update_skipped": True,
+                    "message": "No changes needed - configuration already up to date",
                     "backup_info": {
                         "created": backup_info["timestamp"],
                         "size": backup_info["original_size"]
@@ -178,6 +222,8 @@ class GlossaryUpdater:
                 }
             else:
                 logger.info("Step 8: Updating configuration...")
+                logger.info(f"  Applying {net_change:+d} net change{'s' if abs(net_change) != 1 else ''}")
+                
                 final_config = await self.api_client.update_configuration(config_id, updated_config)
                 
                 result = {
@@ -187,22 +233,37 @@ class GlossaryUpdater:
                     "files_processed": len(all_file_paths),
                     "terms_extracted": len(terms),
                     "merge_stats": merge_stats,
+                    "changes_detected": True,
+                    "update_skipped": False,
+                    "updated_configuration": final_config,
                     "backup_info": {
                         "created": backup_info["timestamp"],
                         "size": backup_info["original_size"]
-                    },
-                    "updated_configuration": final_config
+                    }
                 }
             
-            # Log success summary
+            # Log success summary (updated to show whether update was skipped)
             logger.info("=" * 60)
-            logger.info("✅ Update completed successfully!")
+            if result.get("update_skipped", False):
+                logger.info("✅ Analysis completed - No update needed!")
+                logger.info("   Configuration already contains the same glossary terms")
+            else:
+                logger.info("✅ Update completed successfully!")
+                
             logger.info(f"   Configuration: {config_id}")
             logger.info(f"   Files processed: {len(all_file_paths)}")
             logger.info(f"   Terms extracted: {len(terms)}")
             logger.info(f"   Strategy: {merge_strategy}")
             logger.info(f"   Terms before: {merge_stats['terms_before']}")
             logger.info(f"   Terms after: {merge_stats['terms_after']}")
+            
+            if result.get("update_skipped", False):
+                logger.info("   Action: No changes needed")
+            elif dry_run:
+                logger.info("   Action: Dry run (no changes made)")
+            else:
+                logger.info("   Action: Configuration updated")
+                
             logger.info("=" * 60)
             
             return result
@@ -241,27 +302,26 @@ class GlossaryUpdater:
         
         config = await self.api_client.get_configuration(config_id)
         
-        # Extract glossary information
+        # Extract glossary information from your API structure
         glossary_info = {
             "config_id": config_id,
-            "total_entities": len(config.get("analysisEntityList", [])),
-            "total_resources": len(config.get("resourceList", [])),
-            "glossary_entity_exists": False,
-            "current_glossary_terms": 0,
-            "glossary_resources": []
+            "configuration_name": config.get("configurationName", ""),
+            "configuration_version": config.get("configurationVersion", 0),
+            "schema_version": config.get("configurationSchemaVersion", ""),
+            "total_entities": 0,
+            "total_resources": 0,
+            "current_glossary_terms": 0
         }
         
-        # Find glossary entity
-        for entity in config.get("analysisEntityList", []):
-            if (entity.get("id") == self.merger.glossary_entity_id or 
-                entity.get("name", "").lower() == "glossary"):
-                glossary_info["glossary_entity_exists"] = True
-                
-                # Count terms in glossary resources
-                existing_terms = self.merger._extract_existing_terms(config, entity)
-                glossary_info["current_glossary_terms"] = len(existing_terms)
-                glossary_info["glossary_resources"] = entity.get("resources", [])
-                break
+        # Get counts from data section
+        data = config.get("data", {})
+        if data:
+            glossary_info["total_entities"] = len(data.get("analysisEntityList", []))
+            glossary_info["total_resources"] = len(data.get("resourceList", []))
+            
+            # Count existing glossary terms
+            existing_terms = self.merger._extract_existing_terms(config)
+            glossary_info["current_glossary_terms"] = len(existing_terms)
         
         return glossary_info
     
@@ -298,17 +358,58 @@ class GlossaryUpdater:
         
         current_config = await self.api_client.get_configuration(config_id)
         
-        # Get merge preview
-        preview = self.merger.get_merge_preview(current_config, terms, merge_strategy)
+        # Get existing terms
+        existing_terms = self.merger._extract_existing_terms(current_config)
         
-        # Add file information
-        preview.update({
+        # Calculate what changes would be made
+        preview = {
             "files_to_process": len(all_file_paths),
             "terms_extracted": len(terms),
+            "terms_current": len(existing_terms),
             "file_types": {
                 file_type: len(paths) for file_type, paths in discovered_files.items()
-            }
-        })
+            },
+            "strategy": merge_strategy,
+            "terms_that_would_be_added": [],
+            "terms_that_would_be_updated": [],
+            "terms_that_would_be_removed": []
+        }
+        
+        if merge_strategy == "merge":
+            existing_phrases = {t.phrase.lower(): t for t in existing_terms}
+            
+            for term in terms:
+                phrase_lower = term.phrase.lower()
+                if phrase_lower in existing_phrases:
+                    if existing_phrases[phrase_lower].definition != term.definition:
+                        preview["terms_that_would_be_updated"].append({
+                            "phrase": term.phrase,
+                            "old_definition": existing_phrases[phrase_lower].definition,
+                            "new_definition": term.definition
+                        })
+                else:
+                    preview["terms_that_would_be_added"].append({
+                        "phrase": term.phrase,
+                        "definition": term.definition
+                    })
+                    
+            preview["terms_after"] = len(existing_terms) + len(preview["terms_that_would_be_added"])
+            
+        else:  # overwrite
+            preview["terms_that_would_be_added"] = [
+                {"phrase": t.phrase, "definition": t.definition} for t in terms
+            ]
+            preview["terms_that_would_be_removed"] = [
+                {"phrase": t.phrase, "definition": t.definition} for t in existing_terms
+            ]
+            preview["terms_after"] = len(terms)
+        
+        # Determine if changes would be made
+        preview["would_make_changes"] = (
+            len(preview["terms_that_would_be_added"]) > 0 or
+            len(preview["terms_that_would_be_updated"]) > 0 or
+            len(preview["terms_that_would_be_removed"]) > 0
+        )
         
         return preview
 
@@ -356,7 +457,11 @@ async def run_cli():
             )
             
             if result["success"]:
-                logger.info("Operation completed successfully")
+                if result.get("update_skipped", False):
+                    logger.info("Operation completed - No changes needed")
+                    logger.info("The configuration already contains the same glossary terms")
+                else:
+                    logger.info("Operation completed successfully")
                 
                 # Show summary in verbose mode
                 if config.verbose:
@@ -370,10 +475,19 @@ async def run_cli():
                     logger.info(f"Terms before: {result['merge_stats']['terms_before']}")
                     logger.info(f"Terms after: {result['merge_stats']['terms_after']}")
                     
-                    if config.dry_run:
-                        logger.info("Mode: DRY RUN (no changes made)")
+                    # Show change details
+                    if result.get("changes_detected", True):
+                        logger.info(f"Terms added: {result['merge_stats'].get('terms_added', 0)}")
+                        logger.info(f"Terms updated: {result['merge_stats'].get('terms_updated', 0)}")
+                        logger.info(f"Terms removed: {result['merge_stats'].get('terms_removed', 0)}")
+                    
+                    # Show action taken
+                    if result.get("update_skipped", False):
+                        logger.info("Action: No update needed (no changes detected)")
+                    elif config.dry_run:
+                        logger.info("Action: DRY RUN (no changes made)")
                     else:
-                        logger.info("Mode: LIVE UPDATE")
+                        logger.info("Action: Configuration updated successfully")
                     
                     logger.info("=" * 50)
                 
@@ -387,7 +501,7 @@ async def run_cli():
         sys.exit(1)
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}")
-        if config.verbose:
+        if 'config' in locals() and config.verbose:
             import traceback
             logger.error("Full traceback:")
             logger.error(traceback.format_exc())

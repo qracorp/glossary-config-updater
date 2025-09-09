@@ -84,8 +84,8 @@ class Config:
             merge_strategy=args.merge_strategy,
             dry_run=args.dry_run,
             verbose=args.verbose,
-            timeout=args.timeout,
-            max_retries=args.max_retries
+            timeout=getattr(args, 'timeout', int(os.getenv('API_TIMEOUT', '30'))),
+            max_retries=getattr(args, 'max_retries', int(os.getenv('API_MAX_RETRIES', '3')))
         )
     
     @classmethod
@@ -101,8 +101,8 @@ class Config:
             "merge_strategy": "merge",
             "dry_run": False,
             "verbose": False,
-            "timeout": 30,
-            "max_retries": 3
+            "timeout": int(os.getenv('API_TIMEOUT', '30')),
+            "max_retries": int(os.getenv('API_MAX_RETRIES', '3'))
         }
         
         # Apply overrides
@@ -120,27 +120,25 @@ def create_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   # Update from CSV file
-  glossary-updater --file terms.csv --config config123 --domain api.example.com
+  python glossary_updater.py --file terms.csv --config config123 --domain api.example.com
   
   # Update from multiple files with merge
-  glossary-updater --files terms1.csv terms2.json --config config123 --merge-strategy merge
+  python glossary_updater.py --files terms1.csv terms2.json --config config123 --merge-strategy merge
   
   # Process entire directory
-  glossary-updater --directory ./glossary --config config123 --verbose
+  python glossary_updater.py --directory ./glossary --config config123 --verbose
   
   # Dry run to test without making changes
-  glossary-updater --file terms.csv --config config123 --dry-run
+  python glossary_updater.py --file terms.csv --config config123 --dry-run
   
-  # Using environment variables
-  export API_DOMAIN=api.example.com
-  export API_USERNAME=myuser
-  export API_PASSWORD=mypass
-  glossary-updater --file terms.csv --config config123
+  # Using environment variables (from .env file)
+  python glossary_updater.py --file terms.csv --config config123
 
 Environment Variables:
   API_DOMAIN     - API domain (alternative to --domain)
   API_USERNAME   - API username (alternative to --username)  
   API_PASSWORD   - API password (alternative to --password)
+  SSL_VERIFY     - SSL certificate verification (true/false)
         """
     )
     
@@ -151,16 +149,16 @@ Environment Variables:
         help="Configuration ID to update"
     )
     
-    # File input arguments (at least one required)
+    # File input arguments (at least one required via validation)
     file_group = parser.add_argument_group("Input Files")
     file_group.add_argument(
-        "--file", "-f",
+        "--file",
         dest="files",
         action="append",
         help="Glossary file path (CSV, JSON, or YAML). Can be used multiple times."
     )
     file_group.add_argument(
-        "--directory", "-d", 
+        "--directory", 
         dest="directories",
         action="append",
         help="Directory containing glossary files. Can be used multiple times."
@@ -200,13 +198,13 @@ Environment Variables:
     api_group.add_argument(
         "--timeout",
         type=int,
-        default=30,
+        default=int(os.getenv('API_TIMEOUT', '30')),
         help="API request timeout in seconds (default: 30)"
     )
     api_group.add_argument(
         "--max-retries",
         type=int,
-        default=3,
+        default=int(os.getenv('API_MAX_RETRIES', '3')),
         help="Maximum number of API retry attempts (default: 3)"
     )
     
@@ -217,11 +215,6 @@ Environment Variables:
         action="store_true",
         help="Enable verbose output"
     )
-    output_group.add_argument(
-        "--quiet", "-q",
-        action="store_true",
-        help="Suppress all output except errors"
-    )
     
     return parser
 
@@ -231,15 +224,9 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     parser = create_parser()
     parsed_args = parser.parse_args(args)
     
-    # Validate that at least one file input method is provided
-    if not parsed_args.files and not parsed_args.directories:
-        parser.error("At least one of --file or --directory must be specified")
-    
-    # Handle quiet mode
-    if parsed_args.quiet:
-        parsed_args.verbose = False
-        logger.setLevel("ERROR")
-    elif parsed_args.verbose:
+    # Handle verbose logging
+    if parsed_args.verbose:
         logger.setLevel("DEBUG")
+        logger.debug("Verbose logging enabled")
     
     return parsed_args

@@ -1,5 +1,5 @@
 phrase,definition,category,source,last_updated
-API,"Application Programming Interface - a set of protocols and tools for building software applications",Technical,Engineering Team,2024-01-15
+APIs,"Application Programming Interface - a set of protocols and tools for building software applications",Technical,Engineering Team,2024-01-15
 REST,"Representational State Transfer - an architectural style for designing networked applications",Technical,API Documentation,2024-01-15
 JSON,"JavaScript Object Notation - a lightweight data interchange format",Technical,Data Team,2024-01-10
 YAML,"YAML Ain't Markup Language - a human-readable data serialization standard",Technical,DevOps Team,2024-01-12

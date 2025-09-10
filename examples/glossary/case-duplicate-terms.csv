@@ -1,0 +1,11 @@
+phrase,definition
+api,Application Programming Interface (lowercase)
+REST,Representational State Transfer
+API,Application Programming Interface (uppercase)
+Api,Application Programming Interface (mixed case)
+rest,Different REST definition (lowercase)
+GraphQL,Query language for APIs
+API,Final API definition (should win)
+GRAPHQL,Different GraphQL definition (uppercase)
+json,JavaScript Object Notation (lowercase)
+JSON,Different JSON definition (uppercase)

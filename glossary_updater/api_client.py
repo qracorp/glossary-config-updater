@@ -1,7 +1,25 @@
 """
-API client for interacting with the configuration management API.
+API client for interacting with the QTS configuration API.
 
-Handles authentication, configuration retrieval, and updates.
+Handles authentication, configuration retrieval, and updates. The main thing is trying to avoid sending bad data to the API.
+This is handled in the merger class. For now it is setup to work with QTS which uses the GET and PUT endpoints that exist using
+the standard bearer token.
+
+In the vnet instance this will change in that there will be an endpoint dedicated to that should conform to differing endpoint structure using the
+api key. 
+Example:
+
+curl --location --globoff '<api url>/qwl/v1/analysis/configurations/{configurationId}/glossaries/import'
+--header 'Content-Type: application/json' \
+--header 'x-qra-subscription-key: <subscription key>' \
+--data '{
+    "glossaries": [
+        {
+            "phrase": "Example Term",
+            "definition": "This is an example term"
+        }
+    ]
+}'
 """
 
 import asyncio
@@ -178,7 +196,7 @@ class APIClient:
         if not self._authenticated:
             raise APIError("Not authenticated. Call authenticate() first.")
         
-        # Use V2 endpoint - THIS IS THE KEY FIX
+        # Use V2 endpoint for QTS
         config_url = urljoin(self.base_url, f"/analysis/v2/configuration/{config_id}")
         
         logger.debug(f"Retrieving configuration: {config_id}")
@@ -215,7 +233,7 @@ class APIClient:
         if not self._authenticated:
             raise APIError("Not authenticated. Call authenticate() first.")
         
-        # Use V2 endpoint - THIS IS THE KEY FIX
+        # Use V2 endpoint
         config_url = urljoin(self.base_url, f"/analysis/v2/configuration/{config_id}")
         
         logger.debug(f"Updating configuration: {config_id}")
@@ -237,42 +255,8 @@ class APIClient:
             else:
                 raise ConfigurationError(f"Failed to update configuration: {e.response.status_code}")
         except Exception as e:
-            raise ConfigurationError(f"Configuration update error: {str(e)}")
-    
-    async def validate_configuration(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Validate configuration data without updating.
-        
-        Args:
-            config_data: Configuration data to validate
-            
-        Returns:
-            Validation result
-            
-        Raises:
-            ConfigurationError: If validation fails
-        """
-        if not self._authenticated:
-            raise APIError("Not authenticated. Call authenticate() first.")
-        
-        validate_url = urljoin(self.base_url, "/analysis/v2/configuration/validate")
-        
-        logger.debug("Validating configuration data")
-        
-        try:
-            response = await self._make_request("POST", validate_url, json=config_data)
-            logger.info("✅ Configuration validation successful")
-            return response
-            
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 400:
-                raise ConfigurationError(f"Invalid configuration: {e.response.text}")
-            elif e.response.status_code == 422:
-                raise ConfigurationError(f"Validation failed: {e.response.text}")
-            else:
-                raise ConfigurationError(f"Validation error: {e.response.status_code}")
-        except Exception as e:
-            raise ConfigurationError(f"Configuration validation error: {str(e)}")
+            raise ConfigurationError(f"Configuration update error: {str(e)}")    
+
     
     async def _make_request(self, method: str, url: str, require_auth: bool = True, 
                           **kwargs) -> Dict[str, Any]:
@@ -355,17 +339,18 @@ class APIClient:
             if not self.session:
                 await self.connect()
             
-            # Use V2 endpoint for testing - THIS IS THE KEY FIX
+            # Use V2 endpoint for QTS
             test_url = urljoin(self.base_url, "/analysis/v2/configuration")
             await self._make_request("GET", test_url)
             
-            logger.info("✅ Connection test successful")
+            logger.info("Connection test successful")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Connection test failed: {str(e)}")
+            logger.error(f"Connection test failed: {str(e)}")
             return False
-    
+        
+    # Helper method to get auth headers for QTS not VNET
     def get_auth_headers(self) -> Dict[str, str]:
         """
         Get authentication headers.

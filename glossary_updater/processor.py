@@ -1,7 +1,7 @@
 """
 File processor for reading and parsing glossary files.
 
-Supports CSV, JSON, and YAML formats with automatic data validation and cleaning.
+Supports CSV, JSON, and YAML formats with permissive validation aligned with Angular implementation.
 """
 
 import csv
@@ -26,48 +26,48 @@ class ValidationError(Exception):
 
 
 class TermValidator:
-    """Validates and cleans glossary terms according to schema."""
+    """Validates and cleans glossary terms with permissive rules (Angular-aligned)."""
     
     def __init__(self, schema: Optional[Dict[str, Any]] = None):
         """Initialize with optional custom schema."""
-        self.schema = schema or self.get_default_schema()
+        self.schema = schema or self.get_permissive_schema()
         self.validation_errors = []
         self.cleaned_count = 0
         self.rejected_count = 0
     
-    def get_default_schema(self) -> Dict[str, Any]:
-        """Get default validation schema for glossary terms."""
+    def get_permissive_schema(self) -> Dict[str, Any]:
+        """Get permissive validation schema matching Angular implementation."""
         return {
             "phrase": {
                 "required": True,
-                "min_length": 1,
-                "max_length": 100,
-                "pattern": r"^[A-Za-z0-9\s\-_\(\)\.\/\&]+$",
-                "forbidden_chars": ["<", ">", "\"", "'", ";", "script"],
-                "max_words": 10
+                "min_length": 1,  # Just non-empty after trim
+                "max_length": None,  # No length limit
+                "pattern": None,  # No character restrictions
+                "forbidden_chars": [],  # No forbidden characters
+                "max_words": None  # No word limit
             },
             "definition": {
-                "required": True,
-                "min_length": 5,
-                "max_length": 500,
-                "forbidden_chars": ["<", ">", "script", "javascript"],
-                "must_end_with_punctuation": True
+                "required": False,  # Optional - defaults to empty string
+                "min_length": 0,  # Can be empty
+                "max_length": None,  # No length limit
+                "forbidden_chars": [],  # No forbidden characters
+                "must_end_with_punctuation": False  # No punctuation requirement
             }
         }
     
     def clean_and_validate_term(self, phrase: str, definition: str, metadata: Dict[str, Any] = None) -> Optional['GlossaryTerm']:
         """
-        Clean and validate a single term.
+        Clean and validate a single term with permissive rules.
         
         Returns:
             GlossaryTerm if valid, None if invalid
         """
         try:
-            # Step 1: Clean the data
+            # Step 1: Clean the data (minimal processing)
             cleaned_phrase = self.clean_phrase(phrase)
             cleaned_definition = self.clean_definition(definition)
             
-            # Step 2: Validate against schema
+            # Step 2: Validate against permissive schema
             if self.validate_phrase(cleaned_phrase) and self.validate_definition(cleaned_definition):
                 self.cleaned_count += 1
                 return GlossaryTerm(cleaned_phrase, cleaned_definition, metadata or {})
@@ -81,114 +81,54 @@ class TermValidator:
             return None
     
     def clean_phrase(self, phrase: str) -> str:
-        """Clean and normalize phrase."""
+        """Clean phrase with minimal processing (Angular-style)."""
         if not phrase or phrase == 'None':
             return ""
         
-        # Convert to string and strip
+        # Convert to string and trim whitespace only
         phrase = str(phrase).strip()
-        
-        # Remove HTML tags
-        phrase = re.sub(r'<[^>]+>', '', phrase)
-        
-        # Remove dangerous characters
-        for char in self.schema["phrase"]["forbidden_chars"]:
-            phrase = phrase.replace(char, "")
-        
-        # Normalize whitespace
-        phrase = re.sub(r'\s+', ' ', phrase).strip()
-        
-        # Title case for consistency
-        phrase = phrase.title()
-        
-        # Handle common abbreviations
-        abbreviations = ['Api', 'Rest', 'Json', 'Xml', 'Http', 'Https', 'Url', 'Uri', 'Sql', 'Css', 'Html']
-        for abbr in abbreviations:
-            phrase = phrase.replace(abbr, abbr.upper())
         
         return phrase
     
     def clean_definition(self, definition: str) -> str:
-        """Clean and normalize definition."""
+        """Clean definition with minimal processing (Angular-style)."""
         if not definition or definition == 'None':
-            return ""
+            return ""  # Default to empty string (optional field)
         
-        # Convert to string and strip
+        # Convert to string and trim whitespace only
         definition = str(definition).strip()
-        
-        # Remove HTML tags
-        definition = re.sub(r'<[^>]+>', '', definition)
-        
-        # Remove dangerous characters/strings
-        for forbidden in self.schema["definition"]["forbidden_chars"]:
-            definition = definition.replace(forbidden, "")
-        
-        # Clean whitespace
-        definition = re.sub(r'\s+', ' ', definition).strip()
-        
-        # Capitalize first letter
-        if definition and definition[0].islower():
-            definition = definition[0].upper() + definition[1:]
-        
-        # Ensure ends with punctuation
-        if definition and not definition.endswith(('.', '!', '?')):
-            definition += '.'
         
         return definition
     
     def validate_phrase(self, phrase: str) -> bool:
-        """Validate phrase against schema."""
+        """Validate phrase with permissive rules."""
         rules = self.schema["phrase"]
         
-        if not phrase and rules.get("required", False):
+        # Only check if required and non-empty
+        if rules.get("required", False) and not phrase:
             self.validation_errors.append("Phrase is required but empty")
             return False
         
-        if phrase:
-            # Length checks
-            if len(phrase) < rules.get("min_length", 0):
-                self.validation_errors.append(f"Phrase too short: '{phrase}'")
-                return False
-            
-            if len(phrase) > rules.get("max_length", 1000):
-                self.validation_errors.append(f"Phrase too long: '{phrase[:50]}...'")
-                return False
-            
-            # Pattern check
-            if "pattern" in rules and not re.match(rules["pattern"], phrase):
-                self.validation_errors.append(f"Phrase contains invalid characters: '{phrase}'")
-                return False
-            
-            # Word count check
-            if "max_words" in rules and len(phrase.split()) > rules["max_words"]:
-                self.validation_errors.append(f"Phrase has too many words: '{phrase}'")
+        # If phrase exists, check minimum length (only non-empty requirement)
+        if phrase and rules.get("min_length", 0) > 0:
+            if len(phrase) < rules["min_length"]:
+                self.validation_errors.append(f"Phrase is empty after cleaning: '{phrase}'")
                 return False
         
         return True
     
     def validate_definition(self, definition: str) -> bool:
-        """Validate definition against schema."""
+        """Validate definition with permissive rules."""
         rules = self.schema["definition"]
         
-        if not definition and rules.get("required", False):
+        # Definition is optional - always valid
+        if not rules.get("required", False):
+            return True
+        
+        # If definition is required and empty
+        if rules.get("required", False) and not definition:
             self.validation_errors.append("Definition is required but empty")
             return False
-        
-        if definition:
-            # Length checks
-            if len(definition) < rules.get("min_length", 0):
-                self.validation_errors.append(f"Definition too short: '{definition}'")
-                return False
-            
-            if len(definition) > rules.get("max_length", 1000):
-                self.validation_errors.append(f"Definition too long: '{definition[:50]}...'")
-                return False
-            
-            # Punctuation check
-            if rules.get("must_end_with_punctuation", False):
-                if not definition.endswith(('.', '!', '?')):
-                    self.validation_errors.append(f"Definition must end with punctuation: '{definition}'")
-                    return False
         
         return True
     
@@ -208,22 +148,20 @@ class GlossaryTerm:
     
     def __init__(self, phrase: str, definition: str, metadata: Dict[str, Any] = None):
         """
-        Initialize glossary term.
+        Initialize glossary term with permissive validation.
         
         Args:
-            phrase: The term or phrase
-            definition: The definition
+            phrase: The term or phrase (required)
+            definition: The definition (optional, defaults to empty)
             metadata: Additional metadata
         """
         self.phrase = phrase
-        self.definition = definition
+        self.definition = definition or ""  # Default to empty string if None
         self.metadata = metadata or {}
         
-        # Validate required fields (basic check, detailed validation happens in TermValidator)
+        # Validate required fields (only phrase is required)
         if not self.phrase:
             raise ValueError("Phrase cannot be empty")
-        if not self.definition:
-            raise ValueError("Definition cannot be empty")
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -243,7 +181,7 @@ class GlossaryTerm:
 
 
 class FileProcessor:
-    """Processes glossary files with automatic validation and cleaning."""
+    """Processes glossary files with permissive validation aligned with Angular implementation."""
     
     def __init__(self, validation_schema: Optional[Dict[str, Any]] = None):
         """Initialize file processor with optional validation schema."""
@@ -277,7 +215,7 @@ class FileProcessor:
         
         progress.finish()
         
-        # Remove duplicates while preserving order
+        # Remove duplicates while preserving order (case-insensitive normalization)
         unique_terms = self._deduplicate_terms(all_terms)
         
         # Report validation statistics
@@ -298,7 +236,7 @@ class FileProcessor:
         return unique_terms
     
     def process_file(self, file_path: Path) -> List[GlossaryTerm]:
-        """Process a single file with automatic validation."""
+        """Process a single file with permissive validation."""
         if not file_path.exists():
             raise ProcessingError(f"File not found: {file_path}")
         
@@ -314,7 +252,7 @@ class FileProcessor:
         else:
             raise ProcessingError(f"Unsupported file format: {extension}")
         
-        # Validate and clean all terms
+        # Validate and clean all terms with permissive rules
         validated_terms = []
         for raw_term in raw_terms:
             cleaned_term = self.validator.clean_and_validate_term(
@@ -329,24 +267,24 @@ class FileProcessor:
         return validated_terms
     
     def _extract_csv_terms(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Extract raw terms from CSV file."""
+        """Extract raw terms from CSV file with UTF-8 encoding."""
         raw_terms = []
         
         try:
-            # Try pandas first
+            # Try pandas first with UTF-8 encoding
             df = pd.read_csv(file_path, encoding='utf-8')
             df.columns = df.columns.str.strip().str.lower()
             
             phrase_col = self._find_phrase_column(df.columns)
             definition_col = self._find_definition_column(df.columns)
             
-            if not phrase_col or not definition_col:
-                raise ProcessingError(f"Required columns not found. Available: {list(df.columns)}")
+            if not phrase_col:
+                raise ProcessingError(f"Required 'phrase' column not found. Available: {list(df.columns)}")
             
             for index, row in df.iterrows():
                 try:
-                    phrase = str(row[phrase_col]).strip()
-                    definition = str(row[definition_col]).strip()
+                    phrase = str(row[phrase_col]).strip() if pd.notna(row[phrase_col]) else ""
+                    definition = str(row[definition_col]).strip() if definition_col and pd.notna(row[definition_col]) else ""
                     
                     # Skip completely empty rows
                     if phrase.lower() in ['nan', 'none', ''] and definition.lower() in ['nan', 'none', '']:
@@ -375,7 +313,7 @@ class FileProcessor:
             return self._extract_csv_fallback(file_path)
     
     def _extract_csv_fallback(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Fallback CSV extraction using standard csv module."""
+        """Fallback CSV extraction using standard csv module with UTF-8."""
         raw_terms = []
         
         try:
@@ -392,13 +330,13 @@ class FileProcessor:
                 phrase_col = self._find_phrase_column(fieldnames)
                 definition_col = self._find_definition_column(fieldnames)
                 
-                if not phrase_col or not definition_col:
-                    raise ProcessingError(f"Required columns not found. Available: {fieldnames}")
+                if not phrase_col:
+                    raise ProcessingError(f"Required 'phrase' column not found. Available: {fieldnames}")
                 
                 for row in reader:
                     try:
                         phrase = row.get(phrase_col, '').strip()
-                        definition = row.get(definition_col, '').strip()
+                        definition = row.get(definition_col, '').strip() if definition_col else ""
                         
                         metadata = {}
                         for key, value in row.items():
@@ -421,7 +359,7 @@ class FileProcessor:
             raise ProcessingError(f"CSV processing failed: {str(e)}")
     
     def _extract_json_terms(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Extract raw terms from JSON file."""
+        """Extract raw terms from JSON file with UTF-8 encoding."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -454,7 +392,7 @@ class FileProcessor:
             raise ProcessingError(f"JSON processing failed: {str(e)}")
     
     def _extract_yaml_terms(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Extract raw terms from YAML file."""
+        """Extract raw terms from YAML file with UTF-8 encoding."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
@@ -497,13 +435,13 @@ class FileProcessor:
             definition = None
             metadata = {}
             
-            # Look for phrase
+            # Look for phrase (required)
             for key in ['phrase', 'term', 'word', 'name', 'title']:
                 if key in item:
                     phrase = str(item[key]).strip()
                     break
             
-            # Look for definition
+            # Look for definition (optional)
             for key in ['definition', 'description', 'meaning', 'explanation', 'desc']:
                 if key in item:
                     definition = str(item[key]).strip()
@@ -515,10 +453,11 @@ class FileProcessor:
                              'definition', 'description', 'meaning', 'explanation', 'desc']:
                     metadata[key] = value
             
-            if phrase or definition:  # Allow validator to handle empty values
+            # Include term if it has a phrase (definition optional)
+            if phrase:
                 raw_terms.append({
-                    'phrase': phrase or '',
-                    'definition': definition or '',
+                    'phrase': phrase,
+                    'definition': definition or "",
                     'metadata': metadata
                 })
         
@@ -588,14 +527,16 @@ class FileProcessor:
         return None
     
     def _deduplicate_terms(self, terms: List[GlossaryTerm]) -> List[GlossaryTerm]:
-        """Remove duplicate terms while preserving order."""
+        """Remove duplicate terms with case-insensitive normalization (Angular-style)."""
         seen_phrases = set()
         unique_terms = []
         
         for term in terms:
-            phrase_lower = term.phrase.lower()
-            if phrase_lower not in seen_phrases:
-                seen_phrases.add(phrase_lower)
+            # Normalize phrase for comparison (lowercase for case-insensitive matching)
+            phrase_normalized = term.phrase.lower().strip()
+            
+            if phrase_normalized not in seen_phrases:
+                seen_phrases.add(phrase_normalized)
                 unique_terms.append(term)
             else:
                 logger.debug(f"Removed duplicate term: {term.phrase}")

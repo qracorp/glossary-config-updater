@@ -14,14 +14,10 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-ROCKET="🚀"
-GEAR="⚙️"
-PACKAGE="📦"
-SPARKLES="✨"
-BOOKS="📚"
-COMPUTER="💻"
-CHECK="✅"
-INFO="ℹ️"
+CHECK="[OK]"
+INFO="[INFO]"
+STEP="[STEP]"
+FEATURE="[FEATURE]"
 
 # Configuration
 DEMO_DIR="demo-temp"
@@ -30,15 +26,15 @@ DEMO_CONFIG_ID="demo-config-123"
 # Print functions
 print_header() {
     echo
-    echo -e "${BLUE}══════════════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================================${NC}"
     echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}══════════════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================================${NC}"
     echo
 }
 
 print_section() {
     echo
-    echo -e "${CYAN}${GEAR} $1${NC}"
+    echo -e "${CYAN}${STEP} $1${NC}"
     echo -e "${CYAN}$(printf '─%.0s' $(seq 1 ${#1}))${NC}"
 }
 
@@ -51,7 +47,7 @@ print_info() {
 }
 
 print_feature() {
-    echo -e "${PURPLE}${SPARKLES} $1${NC}"
+    echo -e "${PURPLE}${FEATURE} $1${NC}"
 }
 
 print_code() {
@@ -85,7 +81,7 @@ demo_command() {
         print_success "Command completed successfully"
     else
         echo
-        echo -e "${RED}❌ Command failed (this may be expected in demo mode)${NC}"
+        echo -e "${RED}[ERROR] Command failed (this may be expected in demo mode)${NC}"
     fi
 }
 
@@ -169,9 +165,9 @@ EOF
     print_success "Demo files created in $DEMO_DIR/"
     echo
     echo "Created files:"
-    echo "  📄 demo-terms.csv (10 technical terms)"
-    echo "  📄 advanced-terms.json (3 advanced concepts)"
-    echo "  📄 business-terms.yaml (3 business terms)"
+    echo "  - demo-terms.csv (10 technical terms)"
+    echo "  - advanced-terms.json (3 advanced concepts)"
+    echo "  - business-terms.yaml (3 business terms)"
     
     cd ..
 }
@@ -187,7 +183,7 @@ cleanup_demo() {
 
 # Demo introduction
 demo_intro() {
-    print_header "${ROCKET} Welcome to Glossary Configuration Updater Demo!"
+    print_header "Welcome to Glossary Configuration Updater Demo!"
     
     echo -e "${CYAN}This demo will showcase the key features of the Glossary Configuration Updater:${NC}"
     echo
@@ -206,7 +202,7 @@ demo_intro() {
 
 # Demo file validation
 demo_validation() {
-    print_section "${BOOKS} File Validation Demo"
+    print_section "File Validation Demo"
     
     print_info "The tool automatically validates files before processing"
     echo
@@ -228,7 +224,7 @@ demo_validation() {
 
 # Demo dry run
 demo_dry_run() {
-    print_section "${COMPUTER} Dry Run Demo"
+    print_section "Dry Run Demo"
     
     print_info "Dry run mode lets you test operations safely without making changes"
     echo
@@ -262,7 +258,7 @@ demo_dry_run() {
 
 # Demo Python API
 demo_python_api() {
-    print_section "${PACKAGE} Python API Demo"
+    print_section "Python API Demo"
     
     print_info "The tool can also be used programmatically in Python"
     echo
@@ -279,7 +275,7 @@ from glossary_updater import GlossaryUpdater, Config
 from pathlib import Path
 
 async def main():
-    print("🐍 Python API Demo")
+    print("Python API Demo")
     print("=" * 50)
     
     # Create configuration
@@ -290,7 +286,7 @@ async def main():
         dry_run=True
     )
     
-    print(f"📋 Configuration created:")
+    print(f"Configuration created:")
     print(f"  - Config ID: {config.config_id}")
     print(f"  - Files: {config.file_paths}")
     print(f"  - Strategy: {config.merge_strategy}")
@@ -305,17 +301,17 @@ async def main():
             password=config.password or "demo-pass"
         )
         
-        print("✅ GlossaryUpdater instance created")
+        print("[OK] GlossaryUpdater instance created")
         print(f"  - Domain: {updater.domain}")
         print()
         
         # This would normally work with real API credentials
-        print("🧪 This would perform the update with real API credentials...")
-        print("   result = await updater.update_from_files(...)")
+        print("[INFO] This would perform the update with real API credentials...")
+        print("       result = await updater.update_from_files(...)")
         
     except Exception as e:
-        print(f"ℹ️  Expected demo error: {type(e).__name__}")
-        print("   (This is normal in demo mode without real API credentials)")
+        print(f"[INFO] Expected demo error: {type(e).__name__}")
+        print("       (This is normal in demo mode without real API credentials)")
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -333,7 +329,7 @@ EOF
 
 # Demo advanced features
 demo_advanced_features() {
-    print_section "${SPARKLES} Advanced Features Demo"
+    print_section "Advanced Features Demo"
     
     print_info "Exploring advanced features and options"
     echo
@@ -345,9 +341,9 @@ demo_advanced_features() {
     
     # Show file processing capabilities
     print_info "File processing capabilities:"
-    echo "  📊 CSV: Automatic column detection (phrase, term, word, name)"
-    echo "  📋 JSON: Multiple structure patterns supported"
-    echo "  📝 YAML: Human-readable format with nested data"
+    echo "  - CSV: Automatic column detection (phrase, term, word, name)"
+    echo "  - JSON: Multiple structure patterns supported"
+    echo "  - YAML: Human-readable format with nested data"
     echo
     
     # Demonstrate file discovery
@@ -364,19 +360,19 @@ for file_type, paths in files.items():
     
     # Show configuration options
     print_info "Available merge strategies:"
-    echo "  🔄 merge: Combines new terms with existing (default)"
-    echo "  🔁 overwrite: Replaces all existing terms"
+    echo "  - merge: Combines new terms with existing (default)"
+    echo "  - overwrite: Replaces all existing terms"
     echo
     echo "Available timeout and retry options:"
-    echo "  ⏱️  --timeout: Request timeout in seconds"
-    echo "  🔁 --max-retries: Maximum retry attempts"
+    echo "  - --timeout: Request timeout in seconds"
+    echo "  - --max-retries: Maximum retry attempts"
     
     wait_for_user
 }
 
 # Demo CI/CD integration
 demo_cicd_integration() {
-    print_section "${GEAR} CI/CD Integration Demo"
+    print_section "CI/CD Integration Demo"
     
     print_info "The tool is designed for CI/CD integration"
     echo
@@ -397,10 +393,10 @@ demo_cicd_integration() {
     echo
     
     print_info "Supported CI/CD platforms:"
-    echo "  🐙 GitHub Actions"
-    echo "  🦊 GitLab CI/CD"
-    echo "  🔧 Jenkins"
-    echo "  🔵 Azure DevOps"
+    echo "  - GitHub Actions"
+    echo "  - GitLab CI/CD"
+    echo "  - Jenkins"
+    echo "  - Azure DevOps"
     echo
     
     print_info "Example workflow files are available in examples/workflows/"
@@ -410,7 +406,7 @@ demo_cicd_integration() {
 
 # Demo error handling
 demo_error_handling() {
-    print_section "🛡️ Error Handling Demo"
+    print_section "Error Handling Demo"
     
     print_info "The tool provides comprehensive error handling"
     echo
@@ -433,11 +429,11 @@ demo_error_handling() {
     wait_for_user
     
     print_info "Error types handled:"
-    echo "  🚫 Authentication failures"
-    echo "  🚫 Network connectivity issues"
-    echo "  🚫 File format errors"
-    echo "  🚫 Configuration access problems"
-    echo "  🚫 API timeout and retry scenarios"
+    echo "  - Authentication failures"
+    echo "  - Network connectivity issues"
+    echo "  - File format errors"
+    echo "  - Configuration access problems"
+    echo "  - API timeout and retry scenarios"
     
     # Clean up invalid files
     rm -f "$DEMO_DIR/invalid.csv" "$DEMO_DIR/invalid.json"
@@ -447,36 +443,36 @@ demo_error_handling() {
 
 # Demo summary
 demo_summary() {
-    print_header "${CHECK} Demo Summary"
+    print_header "Demo Summary"
     
     echo -e "${GREEN}Congratulations! You've seen the key features of the Glossary Configuration Updater:${NC}"
     echo
-    print_feature "✅ Multi-format file support (CSV, JSON, YAML)"
-    print_feature "✅ Intelligent validation and error handling"
-    print_feature "✅ Flexible merge strategies"
-    print_feature "✅ Safe dry-run testing"
-    print_feature "✅ Professional CLI interface"
-    print_feature "✅ Python API for programmatic use"
-    print_feature "✅ CI/CD integration support"
-    print_feature "✅ Comprehensive documentation"
+    print_feature "Multi-format file support (CSV, JSON, YAML)"
+    print_feature "Intelligent validation and error handling"
+    print_feature "Flexible merge strategies"
+    print_feature "Safe dry-run testing"
+    print_feature "Professional CLI interface"
+    print_feature "Python API for programmatic use"
+    print_feature "CI/CD integration support"
+    print_feature "Comprehensive documentation"
     echo
     
     print_info "Next steps:"
-    echo "  📖 Read the documentation in docs/"
-    echo "  🔧 Set up your environment with .env file"
-    echo "  🧪 Test with your own API credentials"
-    echo "  🚀 Integrate into your CI/CD pipeline"
-    echo "  📝 Check examples/ for templates and workflows"
+    echo "  - Read the documentation in docs/"
+    echo "  - Set up your environment with .env file"
+    echo "  - Test with your own API credentials"
+    echo "  - Integrate into your CI/CD pipeline"
+    echo "  - Check examples/ for templates and workflows"
     echo
     
     print_info "Resources:"
-    echo "  📚 Documentation: docs/"
-    echo "  🔧 Examples: examples/"
-    echo "  🛠️  Scripts: scripts/"
-    echo "  🧪 Tests: tests/"
+    echo "  - Documentation: docs/"
+    echo "  - Examples: examples/"
+    echo "  - Scripts: scripts/"
+    echo "  - Tests: tests/"
     echo
     
-    echo -e "${CYAN}Thank you for trying the Glossary Configuration Updater! ${ROCKET}${NC}"
+    echo -e "${CYAN}Thank you for trying the Glossary Configuration Updater!${NC}"
 }
 
 # Help function
@@ -553,14 +549,14 @@ trap cleanup_on_exit EXIT
 main() {
     # Check if we're in the right directory
     if [ ! -f "setup.py" ] && [ ! -f "pyproject.toml" ]; then
-        echo "❌ Please run this demo from the project root directory"
+        echo "[ERROR] Please run this demo from the project root directory"
         exit 1
     fi
     
     # Check dependencies
     if ! command -v glossary-updater >/dev/null 2>&1; then
-        echo "❌ glossary-updater not found. Please install the package first:"
-        echo "   pip install -e ."
+        echo "[ERROR] glossary-updater not found. Please install the package first:"
+        echo "        pip install -e ."
         exit 1
     fi
     

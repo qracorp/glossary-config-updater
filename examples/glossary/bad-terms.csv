@@ -1,0 +1,10 @@
+phrase,definition
+,Empty phrase with definition
+API,
+"Good Term","Valid definition"
+,
+"","Both empty"
+"Extremely long phrase that might exceed character limits and cause validation issues because it goes on and on and on","Short def"
+"Normal Term","Normal definition but let's make this extremely long to test definition length limits and see what happens when we have a very very very long definition that might exceed any character limits that the system has in place for definitions"
+"	Whitespace	","	More whitespace	"
+"Special!@#$%","Definition with special chars"

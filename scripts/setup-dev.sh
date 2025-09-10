@@ -14,24 +14,22 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Unicode symbols
-CHECK_MARK="✅"
-CROSS_MARK="❌"
-WARNING="⚠️"
-INFO="ℹ️"
-ROCKET="🚀"
-GEAR="⚙️"
-PACKAGE="📦"
+# ASCII symbols
+CHECK_MARK="[OK]"
+CROSS_MARK="[ERROR]"
+WARNING="[WARN]"
+INFO="[INFO]"
+STEP="[STEP]"
 
 # Function to print colored output
 print_header() {
-    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================${NC}"
     echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================${NC}"
 }
 
 print_step() {
-    echo -e "${CYAN}${GEAR} $1${NC}"
+    echo -e "${CYAN}${STEP} $1${NC}"
 }
 
 print_success() {
@@ -311,7 +309,7 @@ EOF
     # Final success message
     print_header "Development Environment Setup Complete!"
     
-    echo -e "${GREEN}${ROCKET} Your development environment is ready!${NC}"
+    echo -e "${GREEN}Your development environment is ready!${NC}"
     echo
     echo -e "${CYAN}Quick Start Commands:${NC}"
     echo -e "  ${YELLOW}source venv/bin/activate${NC}  # Activate virtual environment"
@@ -328,7 +326,7 @@ EOF
     echo -e "  ${YELLOW}docs/${NC}                     # Project documentation"
     echo -e "  ${YELLOW}examples/${NC}                 # Usage examples"
     echo
-    echo -e "${GREEN}Happy coding! ${PACKAGE}${NC}"
+    echo -e "${GREEN}Happy coding!${NC}"
 }
 
 # Help function

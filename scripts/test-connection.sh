@@ -12,17 +12,16 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-CHECK="✅"
-CROSS="❌"
-WARNING="⚠️"
-INFO="ℹ️"
-ROCKET="🚀"
+CHECK="[OK]"
+CROSS="[ERROR]"
+WARNING="[WARN]"
+INFO="[INFO]"
 
 # Print functions
 print_header() {
-    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================${NC}"
     echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================${NC}"
 }
 
 print_success() {
@@ -478,7 +477,7 @@ EOF
     print_info "CLI tools: Working"
     
     echo
-    print_info "Your API connection is ready for glossary updates! ${ROCKET}"
+    print_info "Your API connection is ready for glossary updates!"
 }
 
 # Trap for cleanup

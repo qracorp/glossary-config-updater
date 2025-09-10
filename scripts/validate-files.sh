@@ -13,11 +13,10 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
-CHECK="✅"
-CROSS="❌"
-WARNING="⚠️"
-INFO="ℹ️"
-SEARCH="🔍"
+CHECK="[OK]"
+CROSS="[ERROR]"
+WARNING="[WARN]"
+INFO="[INFO]"
 
 # Configuration
 DEFAULT_DIRECTORY="docs/glossary"
@@ -56,9 +55,9 @@ print_verbose() {
 }
 
 print_header() {
-    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================${NC}"
     echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}================================================================${NC}"
 }
 
 # Help function
@@ -690,7 +689,7 @@ EOF
 
 # Main validation function
 main() {
-    print_header "Glossary File Validation ${SEARCH}"
+    print_header "Glossary File Validation"
     
     # Check dependencies
     if ! command -v python3 >/dev/null 2>&1; then
@@ -778,7 +777,7 @@ main() {
         print_error "Strict mode: warnings treated as errors"
         exit 1
     else
-        print_success "All validations passed! ${CHECK}"
+        print_success "All validations passed!"
         exit 0
     fi
 }

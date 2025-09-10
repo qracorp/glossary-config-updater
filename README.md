@@ -1,21 +1,19 @@
 # Glossary Configuration Updater
 
-A tool for updating API configurations with glossary terms from various file formats (CSV, JSON, YAML). Available as both a standalone script for CI/CD pipelines and an installable Python package for development environments.
+A tool for updating configurationsvia the QTS API with glossary terms from various file formats (CSV, JSON, YAML). Available as both a standalone script for CI/CD pipelines and an installable Python package for development.
 
-## ✨ Features
+## Features
 
 - **Multi-format support**: Process CSV, JSON, and YAML files
-- **Flexible merge strategies**: Choose between merge or overwrite operations
-- **Professional CLI**: Comprehensive command-line interface with verbose output
+- **Merge strategies**: Choose between merge or overwrite operations
 - **Dual deployment options**: Standalone script or installable Python package
-- **Robust error handling**: Detailed error messages and validation
 - **Dry run mode**: Test operations without making changes
 - **Environment configuration**: Secure credential management via .env files
 - **File discovery**: Automatic discovery of glossary files in directories
 - **Cross-platform**: Works on Windows, Linux, and macOS
 - **Self-installing dependencies**: Automatically installs required packages
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Option 1: Standalone Script (Recommended for CI/CD)
 
@@ -81,7 +79,7 @@ export API_PASSWORD=mypass
 python tools/glossary_updater.py --config config123 --file terms.csv
 ```
 
-## 📁 Supported File Formats
+## Supported File Formats
 
 ### CSV Files
 ```csv
@@ -114,7 +112,7 @@ terms:
     definition: "Representational State Transfer"
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -159,7 +157,7 @@ glossary-updater --help
 - `--dry-run`: Process files and validate but don't update configuration
 - `--verbose`, `-v`: Enable detailed output
 
-## 📚 Usage Examples
+## Usage Examples
 
 ### File Processing Examples
 
@@ -227,7 +225,7 @@ python tools/glossary_updater.py \
   --verbose
 ```
 
-## 🔄 Integration Examples
+## Integration Examples
 
 ### GitHub Actions
 
@@ -351,7 +349,7 @@ deploy-glossary:
     name: production
 ```
 
-## 🐍 Python Package Usage
+## Python Package Usage
 
 When you install the wheel package, you can use it programmatically:
 
@@ -416,61 +414,9 @@ config = Config(
     dry_run=False,
     verbose=True
 )
-```
 
-## 📦 Package Structure
 
-```
-glossary-config-updater/
-├── README.md                          # This file
-├── CHANGELOG.md                       # Version history
-├── LICENSE                            # MIT license
-├── requirements.txt                   # Dependencies
-├── setup.py                          # Package configuration
-├── build-package.sh                  # Build script
-│
-├── tools/
-│   └── glossary_updater.py           # Standalone script
-│
-├── glossary_updater/                 # Python package
-│   ├── __init__.py                   # Package init
-│   ├── main.py                       # CLI entry point
-│   ├── config.py                     # Configuration management
-│   ├── api_client.py                 # API client
-│   ├── processor.py                  # File processing
-│   ├── merger.py                     # Merge strategies
-│   └── utils.py                      # Utility functions
-│
-├── docs/                             # Documentation
-│   ├── installation.md              # Setup guide
-│   ├── usage.md                      # Usage examples
-│   ├── file-formats.md              # Format specs
-│   ├── api-reference.md             # Command reference
-│   ├── troubleshooting.md           # Problem solving
-│   └── integration-guide.md         # CI/CD guide
-│
-├── examples/                         # Templates and samples
-│   ├── .env.example                 # Environment template
-│   ├── glossary/                    # Sample data files
-│   ├── workflows/                   # CI/CD examples
-│   ├── docker/                      # Container examples
-│   └── kubernetes/                  # K8s examples
-│
-├── scripts/                          # Development tools
-│   ├── setup-dev.sh                # Dev setup
-│   ├── test-connection.sh           # Connection test
-│   ├── validate-files.sh            # File validation
-│   └── demo.sh                      # Interactive demo
-│
-└── tests/                           # Test suite
-    ├── test_main.py                 # Main tests
-    ├── test_processor.py            # Processor tests
-    ├── test_merger.py               # Merger tests
-    ├── run-tests.sh                 # Test runner
-    └── fixtures/                    # Test data
-```
-
-## 🔄 Merge Strategies
+## Merge Strategies
 
 ### Merge Strategy (Default)
 - **Behavior**: Combines new terms with existing ones
@@ -494,7 +440,7 @@ glossary-config-updater/
 - New file: GraphQL, SOAP (2 terms)  
 - Result: GraphQL, SOAP (2 terms, original terms removed)
 
-## 🛠 Development
+## Development
 
 ### Setup Development Environment
 
@@ -543,27 +489,9 @@ python tools/glossary_updater.py \
 # build/glossary-config-updater-v1.0.0-wheel.tar.gz
 ```
 
-## 📖 Documentation
 
-- **[Installation Guide](docs/installation.md)** - Setup instructions
-- **[Usage Guide](docs/usage.md)** - Comprehensive usage examples
-- **[File Formats](docs/file-formats.md)** - Supported format specifications
-- **[API Reference](docs/api-reference.md)** - Command-line reference
-- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
-- **[Integration Guide](docs/integration-guide.md)** - CI/CD setup examples
 
-## 🎯 When to Use Which Option
-
-| Use Case | Recommended Option | Why |
-|----------|-------------------|-----|
-| CI/CD pipelines | Standalone script | No installation needed, just run |
-| Production automation | Standalone script | Fewer dependencies, more portable |
-| Development environment | Either option | Package allows programmatic use |
-| Python applications | Package installation | Clean CLI + programmatic access |
-| Docker containers | Standalone script | Simpler container builds |
-| Team sharing | Complete package | Includes examples and documentation |
-
-## 🔍 Real-World Examples
+## Examples
 
 ### Daily Term Updates
 
@@ -618,7 +546,7 @@ if [[ $confirm == [yY] ]]; then
 fi
 ```
 
-## ❗ Common Issues
+## Common Issues
 
 ### Windows Users
 - Use `python tools\glossary_updater.py` (backslashes)
@@ -634,28 +562,3 @@ fi
 - Check .env file exists and has correct format
 - Verify API credentials work manually
 - Use --verbose flag to see detailed error messages
-
-## 🆘 Support
-
-- **Issues**: Create detailed issue reports with error logs
-- **Documentation**: Check docs/ directory for comprehensive guides
-- **Quick Help**: Run with `--help` flag for command options
-
-## 📊 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🏆 Acknowledgments
-
-- Built with [httpx](https://github.com/encode/httpx) for reliable HTTP communication
-- Uses [pandas](https://pandas.pydata.org/) for robust CSV processing
-- YAML support provided by [PyYAML](https://pyyaml.org/)
-- Designed for professional DevOps and development workflows
-
----
-
-**Ready for immediate deployment in your CI/CD pipelines and development workflows.**

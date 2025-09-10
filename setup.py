@@ -43,18 +43,39 @@ setup(
     # Optional dependencies
     extras_require={
         "dev": [
-            "pytest>=6.0",
-            "pytest-asyncio>=0.18.0",
-            "pytest-cov>=3.0.0",
-            "black>=22.0.0",
-            "flake8>=4.0.0",
-            "mypy>=0.910",
-            "isort>=5.0.0",
+            # Testing
+            "pytest>=7.4.0",
+            "pytest-asyncio>=0.21.0",
+            "pytest-cov>=4.1.0",
+            "pytest-mock>=3.11.0",
+            "pytest-xdist>=3.3.0",
+            "respx>=0.20.0",
+            "httpx-mock>=0.10.0",
+            "jsonschema>=4.17.0",
+            "freezegun>=1.2.0",
+            "responses>=0.23.0",
+            # Code quality
+            "black>=23.7.0",
+            "flake8>=6.0.0",
+            "mypy>=1.5.0",
+            "isort>=5.12.0",
+            "pre-commit>=3.3.0",
+        ],
+        "test": [
+            # Test-only dependencies
+            "pytest>=7.4.0",
+            "pytest-asyncio>=0.21.0",
+            "pytest-mock>=3.11.0",
+            "respx>=0.20.0",
+            "httpx-mock>=0.10.0",
+            "jsonschema>=4.17.0",
+            "freezegun>=1.2.0",
         ],
         "docs": [
-            "sphinx>=4.0.0",
-            "sphinx-rtd-theme>=1.0.0",
-            "myst-parser>=0.17.0",
+            "sphinx>=7.1.0",
+            "sphinx-rtd-theme>=1.3.0",
+            "myst-parser>=2.0.0",
+            "sphinx-autodoc-typehints>=1.24.0",
         ],
     },
     
@@ -78,6 +99,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: System :: Systems Administration",
         "Topic :: Utilities",
@@ -99,7 +121,11 @@ setup(
     # Test configuration
     test_suite="tests",
     tests_require=[
-        "pytest>=6.0",
-        "pytest-asyncio>=0.18.0",
+        "pytest>=7.4.0",
+        "pytest-asyncio>=0.21.0",
+        "pytest-mock>=3.11.0",
+        "respx>=0.20.0",
+        "httpx-mock>=0.10.0",
+        "jsonschema>=4.17.0",
     ],
 )

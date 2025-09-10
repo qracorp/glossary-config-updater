@@ -1,7 +1,7 @@
 """
 Glossary Configuration Updater
 
-A professional tool for updating API configurations with glossary terms from various file formats.
+A tool for updating API configurations with glossary terms from various file formats.
 
 This package provides both a programmatic API and command-line interface for:
 - Reading glossary terms from CSV, JSON, and YAML files
@@ -24,9 +24,9 @@ Command Line:
 """
 
 __version__ = "1.0.0"
-__author__ = "Your Organization"
-__email__ = "support@yourorg.com"
-__license__ = "MIT"
+__author__ = "QRA"
+__email__ = "rob.Harrison@qracorp.com"
+__license__ = ""
 
 from .main import GlossaryUpdater
 from .config import Config

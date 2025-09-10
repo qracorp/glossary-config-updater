@@ -63,13 +63,6 @@ test = [
     "responses>=0.18.0",
 ]
 
-[project.urls]
-Homepage = "https://github.com/yourorg/glossary-config-updater"
-Documentation = "https://github.com/yourorg/glossary-config-updater/docs"
-Repository = "https://github.com/yourorg/glossary-config-updater.git"
-"Bug Reports" = "https://github.com/yourorg/glossary-config-updater/issues"
-Changelog = "https://github.com/yourorg/glossary-config-updater/blob/main/CHANGELOG.md"
-
 [project.scripts]
 glossary-updater = "glossary_updater.main:main"
 

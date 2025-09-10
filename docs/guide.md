@@ -9,6 +9,8 @@ Reference for the Glossary Configuration Updater.
 - [Basic Usage](#basic-usage)
 - [Authentication](#authentication)
 - [File Processing](#file-processing)
+- [Validation Rules](#validation-rules)
+- [Reserved Configurations](#reserved-configurations)
 - [Merge Strategies](#merge-strategies)
 - [Advanced Usage](#advanced-usage)
 - [Command Reference](#command-reference)
@@ -322,12 +324,165 @@ The tool automatically discovers and processes:
 **Example directory structure:**
 ```
 glossary-files/
-├── technical-terms.csv      ✅ Processed
-├── business-glossary.json   ✅ Processed  
-├── api-definitions.yaml     ✅ Processed
-├── legacy-terms.yml         ✅ Processed
-├── readme.txt               ❌ Ignored (unsupported)
-└── backup.csv.bak           ❌ Ignored (wrong extension)
+├── technical-terms.csv      # Processed
+├── business-glossary.json   # Processed  
+├── api-definitions.yaml     # Processed
+├── legacy-terms.yml         # Processed
+├── readme.txt               # Ignored (unsupported)
+└── backup.csv.bak           # Ignored (wrong extension)
+```
+
+## Validation Rules
+
+The tool uses **permissive validation** that accepts most input while ensuring data integrity. This approach aligns with the Angular implementation and prioritizes usability over strict formatting.
+
+### Phrase Validation (Required)
+
+**Requirements:**
+- **Must be present** - Cannot be empty after trimming whitespace
+- **No length limits** - Accepts phrases of any reasonable length
+- **No character restrictions** - Accepts any characters (letters, numbers, symbols, punctuation)
+- **Case preserved** - Original casing is maintained
+- **Whitespace trimmed** - Leading/trailing spaces are removed
+
+**Examples of valid phrases:**
+```csv
+phrase,definition
+API,Application Programming Interface
+REST API,Representational State Transfer API
+OAuth 2.0,Open Authorization version 2.0
+"Don't",Contraction meaning do not
+50/50,Equal split or probability
+User's Guide,Documentation for users
+@mention,Reference to a user or entity
+#hashtag,Topic or category marker
+```
+
+### Definition Validation (Optional)
+
+**Requirements:**
+- **Optional field** - Can be empty or missing (defaults to empty string)
+- **No length limits** - Accepts definitions of any reasonable length
+- **No character restrictions** - Accepts any characters
+- **No punctuation requirements** - Does not require ending punctuation
+- **No capitalization enforcement** - Original formatting preserved
+- **Whitespace trimmed** - Leading/trailing spaces are removed
+
+**Examples of valid definitions:**
+```csv
+phrase,definition
+API,Application Programming Interface
+ASAP,
+Quick,fast or rapid
+API (v2),Second version of the application programming interface
+"Multi-line","Definition that spans
+multiple lines if needed"
+```
+
+### File Format Requirements
+
+**CSV Files:**
+- **UTF-8 encoding** - Files must be UTF-8 encoded
+- **Required phrase column** - Must have a column named `phrase` (case-insensitive)
+- **Optional definition column** - `definition` column is optional
+- **Flexible headers** - Accepts variations like `term`, `word`, `name`, `description`, `meaning`
+
+**JSON Files:**
+- **Valid JSON syntax** - Must be parseable JSON
+- **UTF-8 encoding** - Files must be UTF-8 encoded
+- **Flexible structure** - Supports arrays or objects with glossary data
+
+**YAML Files:**
+- **Valid YAML syntax** - Must be parseable YAML
+- **UTF-8 encoding** - Files must be UTF-8 encoded
+- **Flexible structure** - Supports various YAML structures
+
+### Duplicate Handling
+
+**Case-insensitive detection:**
+- `API`, `api`, and `Api` are considered duplicates
+- **Last occurrence wins** - If duplicates exist, the final definition is kept
+- **Automatic deduplication** - Removes duplicates during processing
+
+**Example duplicate processing:**
+```csv
+# Input file with duplicates
+phrase,definition
+api,Application Programming Interface (lowercase)
+REST,Representational State Transfer
+API,Application Programming Interface (uppercase)
+Api,Application Programming Interface (mixed case)
+
+# Result after deduplication: 2 unique terms
+# API -> "Application Programming Interface (mixed case)" (last occurrence)
+# REST -> "Representational State Transfer"
+```
+
+### What Gets Rejected
+
+**The tool will reject:**
+- **Empty phrases** - Phrases that are empty after trimming whitespace
+- **Invalid file formats** - Files that cannot be parsed as CSV/JSON/YAML
+- **Missing phrase column** - CSV files without a recognizable phrase column
+- **Encoding issues** - Files that are not UTF-8 encoded
+
+**Example of rejected terms:**
+```csv
+phrase,definition
+,This would be rejected - empty phrase
+"   ",This would be rejected - whitespace only phrase
+Valid Term,This would be accepted
+```
+
+### Validation Error Messages
+
+**Common validation errors:**
+```
+[ERROR] No phrase column found (expected: phrase, term, word, name, or title)
+[ERROR] 5 empty phrase(s) found and rejected
+[WARN] 3 empty definition(s) found (using empty string)
+[WARN] 2 duplicate phrase(s) found (keeping last occurrence)
+```
+
+## Reserved Configurations
+
+**IMPORTANT:** The following configuration IDs are **reserved system configurations** and should not be modified. The tool will prevent any updates to these IDs to protect critical system functionality.
+
+### Reserved Configuration IDs
+
+```
+08a785dd-9c90-3c8e-b9e6-dea1c560bfb9
+9d8d0029-0b2c-37f3-924a-87e97085ff34
+6d2af803-4078-374f-917e-81735a65f251
+e52e00a8-5136-3ac1-a2c9-7a2d938ef4fd
+```
+
+
+### Error Message
+
+If you attempt to update a reserved configuration, you'll see:
+
+```
+[ERROR] Configuration ID 08a785dd-9c90-3c8e-b9e6-dea1c560bfb9 is reserved and cannot be modified.
+        Reserved IDs are system configurations that must not be updated.
+```
+
+### Checking Your Configuration ID
+
+**Before running updates, verify your configuration ID:**
+
+```bash
+# Check if your config ID is reserved (will fail immediately if reserved)
+python tools/glossary_updater.py \
+  --config your-config-id \
+  --file any-file.csv \
+  --dry-run
+
+# Example output for reserved ID:
+# [ERROR] Configuration ID 08a785dd-9c90-3c8e-b9e6-dea1c560bfb9 is reserved and cannot be modified.
+
+# Example output for valid ID:
+# [INFO] Configuration ID abc123-valid-config passed reserved ID validation
 ```
 
 ## Merge Strategies
@@ -371,15 +526,6 @@ python tools/glossary_updater.py \
 - **New file terms**: GraphQL, SOAP (2 terms)
 - **Result**: GraphQL, SOAP (2 terms - original terms removed)
 
-### Choosing the Right Strategy
-
-| Use Case | Strategy | Command Example |
-|----------|----------|-----------------|
-| Adding new terms | `merge` | `--merge-strategy merge` (default) |
-| Updating definitions | `merge` | `--merge-strategy merge` |
-| Complete refresh | `overwrite` | `--merge-strategy overwrite` |
-| System migration | `overwrite` | `--merge-strategy overwrite` |
-| Monthly updates | `merge` | `--merge-strategy merge` |
 
 ## Advanced Usage
 
@@ -409,17 +555,17 @@ Processing file: terms.csv
   → Found 25 terms
 
 Step 3: Connecting to API...
-✅ Authentication successful
+[OK] Authentication successful
 
 Step 4: Retrieving configuration...
-✅ Retrieved configuration: config123
+[OK] Retrieved configuration: config123
 
 Step 5: Performing merge...
-✅ Merge completed: 10 → 35 terms (25 added, 0 updated)
+[OK] Merge completed: 10 → 35 terms (25 added, 0 updated)
 
 Step 6: Dry run - no changes made
 
-✅ Update completed successfully!
+[OK] Update completed successfully!
 {
   "success": true,
   "dry_run": true,
@@ -721,19 +867,38 @@ When the update completes successfully, the tool outputs JSON:
 
 ### CSV Format
 
-**Required headers:** `phrase,definition`
+**Required headers:** `phrase,definition` (definition column is optional)
 
 ```csv
 phrase,definition
-API,"Application Programming Interface"
-REST,"Representational State Transfer"
-JSON,"JavaScript Object Notation"
+API,Application Programming Interface
+REST,Representational State Transfer
+JSON,JavaScript Object Notation
+ASAP,
+```
+
+**Alternative header names accepted:**
+- **Phrase column:** `phrase`, `term`, `word`, `name`, `title`
+- **Definition column:** `definition`, `description`, `meaning`, `explanation`, `desc`
+
+**Examples with different headers:**
+```csv
+term,description
+API,Application Programming Interface
+REST,Representational State Transfer
+```
+
+```csv
+word,meaning
+API,Application Programming Interface
+ASAP,
 ```
 
 **Tips:**
 - Quote phrases containing commas or special characters
 - Ensure UTF-8 encoding
-- Include headers in first row
+- Include phrase header in first row (definition is optional)
+- Empty definitions are allowed and will default to empty string
 
 ### JSON Format
 
@@ -748,14 +913,40 @@ JSON,"JavaScript Object Notation"
   {
     "phrase": "REST",
     "definition": "Representational State Transfer"
+  },
+  {
+    "phrase": "ASAP",
+    "definition": ""
   }
 ]
+```
+
+**Alternative JSON structures supported:**
+```json
+{
+  "glossary": [
+    {
+      "phrase": "API", 
+      "definition": "Application Programming Interface"
+    }
+  ]
+}
+```
+
+```json
+{
+  "terms": {
+    "API": "Application Programming Interface",
+    "REST": "Representational State Transfer"
+  }
+}
 ```
 
 **Tips:**
 - Use double quotes for all strings
 - No trailing commas
 - Validate JSON syntax before processing
+- Empty definitions are allowed
 
 ### YAML Format
 
@@ -767,12 +958,23 @@ terms:
     definition: "Application Programming Interface"
   - phrase: "REST"
     definition: "Representational State Transfer"
+  - phrase: "ASAP"
+    definition: ""
+```
+
+**Alternative YAML structures supported:**
+```yaml
+glossary:
+  API: "Application Programming Interface" 
+  REST: "Representational State Transfer"
+  ASAP: ""
 ```
 
 **Tips:**
 - Watch indentation (use spaces, not tabs)
 - Quote special characters
 - Validate YAML syntax before processing
+- Empty definitions are allowed
 
 ## CI/CD Integration
 
@@ -894,121 +1096,7 @@ deploy-glossary:
     name: production
 ```
 
-### Jenkins Pipeline
 
-```groovy
-// Jenkinsfile
-pipeline {
-    agent any
-    
-    environment {
-        API_DOMAIN = credentials('api-domain')
-        API_USERNAME = credentials('api-username')  
-        API_PASSWORD = credentials('api-password')
-        CONFIG_ID = credentials('config-id')
-    }
-    
-    stages {
-        stage('Setup') {
-            steps {
-                sh 'pip install -r requirements.txt'
-            }
-        }
-        
-        stage('Validate') {
-            steps {
-                sh '''
-                    python tools/glossary_updater.py \
-                        --config ${CONFIG_ID} \
-                        --directory ./glossary/ \
-                        --dry-run \
-                        --verbose
-                '''
-            }
-        }
-        
-        stage('Deploy') {
-            when {
-                branch 'main'
-            }
-            steps {
-                input message: 'Deploy glossary updates?', ok: 'Deploy'
-                sh '''
-                    python tools/glossary_updater.py \
-                        --config ${CONFIG_ID} \
-                        --directory ./glossary/ \
-                        --merge-strategy merge \
-                        --verbose
-                '''
-            }
-        }
-    }
-    
-    post {
-        always {
-            archiveArtifacts artifacts: '**/*.log', allowEmptyArchive: true
-        }
-        failure {
-            emailext (
-                subject: "Glossary Update Failed: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
-                body: "Check console output at ${env.BUILD_URL}",
-                to: "${env.CHANGE_AUTHOR_EMAIL}"
-            )
-        }
-    }
-}
-```
-
-### Azure DevOps
-
-```yaml
-# azure-pipelines.yml
-trigger:
-  paths:
-    include:
-    - glossary/*
-
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  pythonVersion: '3.9'
-
-steps:
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '$(pythonVersion)'
-  displayName: 'Use Python $(pythonVersion)'
-
-- script: |
-    pip install -r requirements.txt
-  displayName: 'Install dependencies'
-
-- script: |
-    python tools/glossary_updater.py \
-      --config $(CONFIG_ID) \
-      --directory ./glossary/ \
-      --dry-run \
-      --verbose
-  env:
-    API_DOMAIN: $(API_DOMAIN)
-    API_USERNAME: $(API_USERNAME)
-    API_PASSWORD: $(API_PASSWORD)
-  displayName: 'Validate glossary updates'
-
-- script: |
-    python tools/glossary_updater.py \
-      --config $(CONFIG_ID) \
-      --directory ./glossary/ \
-      --merge-strategy merge \
-      --verbose
-  env:
-    API_DOMAIN: $(API_DOMAIN)
-    API_USERNAME: $(API_USERNAME)
-    API_PASSWORD: $(API_PASSWORD)
-  displayName: 'Deploy glossary updates'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-```
 
 ## Best Practices
 
@@ -1036,25 +1124,34 @@ project/
 **Use consistent CSV headers:**
 ```csv
 phrase,definition
-"API","Application Programming Interface" 
-"REST API","Representational State Transfer API"
-"OAuth 2.0","Open Authorization 2.0"
+API,Application Programming Interface 
+REST API,Representational State Transfer API
+OAuth 2.0,Open Authorization 2.0
 ```
 
 **Quote phrases with special characters:**
 ```csv
 phrase,definition
-"Don't","Contraction meaning 'do not'"
-"50/50","Equal split or probability"
-"API (v2)","Second version of the API"
+"Don't",Contraction meaning 'do not'
+"50/50",Equal split or probability
+"API (v2)",Second version of the API
 ```
 
 **Write clear, concise definitions:**
 ```csv
 phrase,definition
-"Microservice","A small, independent service that performs a specific business function"
-"Container","A lightweight, standalone package that includes everything needed to run an application"
-"Webhook","An HTTP callback triggered by specific events in a system"
+Microservice,A small independent service that performs a specific business function
+Container,A lightweight standalone package that includes everything needed to run an application
+Webhook,An HTTP callback triggered by specific events in a system
+```
+
+**Empty definitions are allowed:**
+```csv
+phrase,definition
+API,Application Programming Interface
+ASAP,
+TBD,
+FYI,For your information
 ```
 
 ### Environment Management
@@ -1112,7 +1209,7 @@ python tools/glossary_updater.py \
 **Use CSV for large datasets:**
 - CSV parsing is fastest for large term lists
 - Remove unnecessary metadata columns
-- Keep definitions concise
+- Keep definitions concise but empty definitions are fine
 
 **Split very large files:**
 ```bash
@@ -1132,193 +1229,6 @@ for chunk in chunk-*; do
 done
 ```
 
-## Common Workflows
-
-### Daily Term Updates
-
-```bash
-#!/bin/bash
-# daily-update.sh
-
-set -e
-source .env
-
-echo "Starting daily glossary update..."
-
-# Validate environment
-if [ -z "$CONFIG_ID" ]; then
-    echo "❌ CONFIG_ID not set in .env"
-    exit 1
-fi
-
-# Test with dry run
-echo "Testing update..."
-python tools/glossary_updater.py \
-    --config "$CONFIG_ID" \
-    --directory ./daily-terms \
-    --dry-run
-
-# Perform actual update
-echo "Performing update..."
-python tools/glossary_updater.py \
-    --config "$CONFIG_ID" \
-    --directory ./daily-terms \
-    --merge-strategy merge \
-    --verbose
-
-echo "✅ Daily update completed"
-```
-
-### Release Glossary Refresh
-
-```bash
-#!/bin/bash
-# release-refresh.sh
-
-set -e
-source .env
-
-echo "Starting release glossary refresh..."
-
-# Complete overwrite with authoritative source
-python tools/glossary_updater.py \
-    --config "$CONFIG_ID" \
-    --file ./release/complete-glossary.csv \
-    --merge-strategy overwrite \
-    --verbose
-
-echo "✅ Release refresh completed"
-```
-
-### Multi-Environment Updates
-
-```bash
-#!/bin/bash
-# multi-env-update.sh
-
-declare -A environments=(
-    ["dev"]="config-dev-123"
-    ["staging"]="config-staging-456" 
-    ["prod"]="config-prod-789"
-)
-
-glossary_file="./terms/latest-glossary.csv"
-
-for env in "${!environments[@]}"; do
-    config_id="${environments[$env]}"
-    
-    echo "Updating $env environment (config: $config_id)..."
-    
-    # Test first
-    if ! python tools/glossary_updater.py \
-        --config "$config_id" \
-        --file "$glossary_file" \
-        --dry-run; then
-        echo "❌ Dry run failed for $env"
-        continue
-    fi
-    
-    # Update
-    python tools/glossary_updater.py \
-        --config "$config_id" \
-        --file "$glossary_file" \
-        --merge-strategy merge \
-        --verbose
-    
-    echo "✅ Updated $env environment"
-done
-
-echo "✅ All environments updated"
-```
-
-### Validation Workflow
-
-```bash
-#!/bin/bash
-# validate-and-update.sh
-
-set -e
-source .env
-
-echo "Starting validation workflow..."
-
-glossary_dir="./glossary"
-config_id="$CONFIG_ID"
-
-# Step 1: Validate files exist and are readable
-echo "Step 1: Validating files..."
-if [ ! -d "$glossary_dir" ]; then
-    echo "❌ Glossary directory not found: $glossary_dir"
-    exit 1
-fi
-
-file_count=$(find "$glossary_dir" -name "*.csv" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" | wc -l)
-if [ "$file_count" -eq 0 ]; then
-    echo "❌ No glossary files found in $glossary_dir"
-    exit 1
-fi
-
-echo "Found $file_count glossary files"
-
-# Step 2: Validate file contents
-echo "Step 2: Validating file contents..."
-for file in "$glossary_dir"/*.{csv,json,yaml,yml}; do
-    if [ -f "$file" ]; then
-        echo "Checking: $file"
-        case "$file" in
-            *.csv)
-                # Check CSV has required headers
-                if ! head -1 "$file" | grep -q "phrase.*definition"; then
-                    echo "❌ CSV file missing required headers: $file"
-                    exit 1
-                fi
-                ;;
-            *.json)
-                # Validate JSON syntax
-                if ! python -m json.tool "$file" >/dev/null 2>&1; then
-                    echo "❌ Invalid JSON syntax: $file"
-                    exit 1
-                fi
-                ;;
-            *.yaml|*.yml)
-                # Validate YAML syntax
-                if ! python -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
-                    echo "❌ Invalid YAML syntax: $file"
-                    exit 1
-                fi
-                ;;
-        esac
-    fi
-done
-
-# Step 3: Dry run to validate processing
-echo "Step 3: Performing dry run..."
-python tools/glossary_updater.py \
-    --config "$config_id" \
-    --directory "$glossary_dir" \
-    --dry-run \
-    --verbose
-
-# Step 4: Get user confirmation  
-echo ""
-read -p "Validation passed. Proceed with actual update? (y/N): " -n 1 -r
-echo ""
-
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Update cancelled by user"
-    exit 0
-fi
-
-# Step 5: Perform actual update
-echo "Step 4: Performing actual update..."
-python tools/glossary_updater.py \
-    --config "$config_id" \
-    --directory "$glossary_dir" \
-    --merge-strategy merge \
-    --verbose
-
-echo "✅ Validation workflow completed successfully"
-```
 
 ---
 
@@ -1326,4 +1236,5 @@ echo "✅ Validation workflow completed successfully"
 - Windows: Use `python tools\glossary_updater.py` (backslashes)
 - Authentication errors: Check your .env file
 - File format errors: Validate CSV/JSON/YAML syntax first
+- Reserved config errors: Check if your config ID is in the reserved list
 - Get help: `python tools/glossary_updater.py --help`

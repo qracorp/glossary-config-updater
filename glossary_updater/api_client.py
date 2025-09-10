@@ -78,9 +78,9 @@ class APIClient:
         # Disable SSL warnings if verification is disabled
         if not self.ssl_verify:
             urllib3.disable_warnings(InsecureRequestWarning)
-            logger.info("⚠️  SSL certificate verification disabled")
+            logger.info("[WARN] SSL certificate verification disabled")
         else:
-            logger.info("✅ SSL certificate verification enabled")
+            logger.info("[OK] SSL certificate verification enabled")
         
         # Ensure domain has protocol
         if not self.domain.startswith(('http://', 'https://')):
@@ -164,7 +164,7 @@ class APIClient:
             self.auth_cookies = None  # httpx will manage cookies automatically
             
             self._authenticated = True
-            logger.info("✅ Authentication successful")
+            logger.info("[OK] Authentication successful")
             
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
@@ -203,7 +203,7 @@ class APIClient:
         
         try:
             response = await self._make_request("GET", config_url)
-            logger.info(f"✅ Retrieved configuration: {config_id}")
+            logger.info(f"[OK] Retrieved configuration: {config_id}")
             return response
             
         except httpx.HTTPStatusError as e:
@@ -240,7 +240,7 @@ class APIClient:
         
         try:
             response = await self._make_request("PUT", config_url, json=config_data)
-            logger.info(f"✅ Updated configuration: {config_id}")
+            logger.info(f"[OK] Updated configuration: {config_id}")
             return response
             
         except httpx.HTTPStatusError as e:
@@ -339,11 +339,12 @@ class APIClient:
             if not self.session:
                 await self.connect()
             
-            # Use V2 endpoint for QTS
+            # Use V2 endpoint for QTS. For VNET this would follow the pattern for that api, so it will differ in structure.
+
             test_url = urljoin(self.base_url, "/analysis/v2/configuration")
             await self._make_request("GET", test_url)
             
-            logger.info("Connection test successful")
+            logger.info("[OK] Connection test successful")
             return True
             
         except Exception as e:

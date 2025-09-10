@@ -109,6 +109,23 @@ class GlossaryUpdater:
         logger.info("=" * 60)
         
         try:
+            # Step 0: Check for reserved configuration IDs
+            # These are system/reserved configurations that should never be modified
+            # NOTE: Server is too permissive and allows these updates, but they should be blocked
+            RESERVED_CONFIG_IDS = {
+                "08a785dd-9c90-3c8e-b9e6-dea1c560bfb9",
+                "9d8d0029-0b2c-37f3-924a-87e97085ff34", 
+                "6d2af803-4078-374f-917e-81735a65f251",
+                "e52e00a8-5136-3ac1-a2c9-7a2d938ef4fd"
+            }
+            
+            if config_id in RESERVED_CONFIG_IDS:
+                raise GlossaryUpdaterError(
+                    f"Configuration ID {config_id} is reserved and cannot be modified. "
+                    f"Reserved IDs are system configurations that must not be updated."
+                )
+            
+            logger.debug(f"Configuration ID {config_id} passed reserved ID validation")
             # Step 1: Discover and validate files
             all_paths = (file_paths or []) + (directory_paths or [])
             if not all_paths:
@@ -245,31 +262,31 @@ class GlossaryUpdater:
             # Log success summary (updated to show whether update was skipped)
             logger.info("=" * 60)
             if result.get("update_skipped", False):
-                logger.info("✅ Analysis completed - No update needed!")
-                logger.info("   Configuration already contains the same glossary terms")
+                logger.info("[OK] Analysis completed - No update needed!")
+                logger.info("     Configuration already contains the same glossary terms")
             else:
-                logger.info("✅ Update completed successfully!")
+                logger.info("[OK] Update completed successfully!")
                 
-            logger.info(f"   Configuration: {config_id}")
-            logger.info(f"   Files processed: {len(all_file_paths)}")
-            logger.info(f"   Terms extracted: {len(terms)}")
-            logger.info(f"   Strategy: {merge_strategy}")
-            logger.info(f"   Terms before: {merge_stats['terms_before']}")
-            logger.info(f"   Terms after: {merge_stats['terms_after']}")
+            logger.info(f"     Configuration: {config_id}")
+            logger.info(f"     Files processed: {len(all_file_paths)}")
+            logger.info(f"     Terms extracted: {len(terms)}")
+            logger.info(f"     Strategy: {merge_strategy}")
+            logger.info(f"     Terms before: {merge_stats['terms_before']}")
+            logger.info(f"     Terms after: {merge_stats['terms_after']}")
             
             if result.get("update_skipped", False):
-                logger.info("   Action: No changes needed")
+                logger.info("     Action: No changes needed")
             elif dry_run:
-                logger.info("   Action: Dry run (no changes made)")
+                logger.info("     Action: Dry run (no changes made)")
             else:
-                logger.info("   Action: Configuration updated")
+                logger.info("     Action: Configuration updated")
                 
             logger.info("=" * 60)
             
             return result
             
         except Exception as e:
-            logger.error(f"❌ Update failed: {str(e)}")
+            logger.error(f"[ERROR] Update failed: {str(e)}")
             raise GlossaryUpdaterError(f"Update failed: {str(e)}")
     
     async def test_connection(self) -> bool:
@@ -444,7 +461,7 @@ async def run_cli():
             # Test connection first
             logger.info("Testing API connection...")
             if not await updater.test_connection():
-                logger.error("❌ Failed to connect to API")
+                logger.error("[ERROR] Failed to connect to API")
                 sys.exit(1)
             
             # Run update

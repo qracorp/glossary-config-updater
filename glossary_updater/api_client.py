@@ -196,7 +196,7 @@ class APIClient:
         if not self._authenticated:
             raise APIError("Not authenticated. Call authenticate() first.")
         
-        # Use V2 endpoint for QTS
+        # Use V2 endpoint for QTS, this differs for the VNET and will use that API signature and the api key.
         config_url = urljoin(self.base_url, f"/analysis/v2/configuration/{config_id}")
         
         logger.debug(f"Retrieving configuration: {config_id}")
@@ -233,7 +233,11 @@ class APIClient:
         if not self._authenticated:
             raise APIError("Not authenticated. Call authenticate() first.")
         
-        # Use V2 endpoint
+        # Use V2 endpoint for QTS. For VNET this would follow the pattern for that api, 
+        # so it will differ in structure. The validation done in theses scripts will move serve side 
+        # and it will be a matter of passing the correct json glossary payload with paramaters according to 
+        # actions required.
+        
         config_url = urljoin(self.base_url, f"/analysis/v2/configuration/{config_id}")
         
         logger.debug(f"Updating configuration: {config_id}")
@@ -278,7 +282,7 @@ class APIClient:
         if require_auth and not self._authenticated:
             raise APIError("Authentication required for this request")
         
-        # Add authentication header if authenticated
+        # Add authentication header if authenticated. Note this is not needed with VNET as it uses the api key header.
         headers = kwargs.get('headers', {})
         if self._authenticated and self.auth_token:
             headers['Authorization'] = f'Bearer {self.auth_token}'
